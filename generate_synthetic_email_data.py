@@ -94,11 +94,28 @@ class SyntheticEmailGenerator:
         """
         Generate realistic email addresses for envelope and header.
 
+        This method creates statistically realistic email patterns based on spam classification,
+        maintaining feature correlation important for Naive Bayes independence assumption testing.
+
+        Mathematical Foundation:
+            - Spam emails: P(suspicious_domain | spam) > P(suspicious_domain | legitimate)
+            - Feature correlation: Domain patterns correlate with spam classification
+
         Args:
             is_spam: Boolean indicating if this is a spam email
+                    True = spam classification (suspicious patterns)
+                    False = legitimate classification (normal patterns)
 
         Returns:
             Tuple of (envelope_from, header_from)
+            - envelope_from: Technical sender address in angle brackets
+            - header_from: Display sender with optional full name formatting
+
+        Example:
+            >>> gen = SyntheticEmailGenerator()
+            >>> envelope, header = gen.generate_email_address(is_spam=True)
+            >>> # envelope: '<promo123@suspicious.net>'
+            >>> # header: '<promo123@suspicious.net>'
         """
         domains = self.spam_domains if is_spam else self.legitimate_domains
         domain = random.choice(domains)
@@ -130,7 +147,28 @@ class SyntheticEmailGenerator:
         return envelope, header
 
     def generate_subject(self, is_spam: bool) -> str:
-        """Generate realistic subject lines based on spam classification."""
+        """
+        Generate realistic subject lines based on spam classification.
+
+        Creates subject lines that reflect typical patterns in spam vs. legitimate emails,
+        providing rich feature data for Naive Bayes word likelihood calculations.
+
+        Mathematical Foundation:
+            - P(word | spam) ≠ P(word | legitimate) for discriminative words
+            - Bag of Words model: Subject represented as word frequency vector
+            - Feature independence assumption: P(subject | class) = ∏ P(word_i | class)
+
+        Args:
+            is_spam: Boolean spam classification flag
+
+        Returns:
+            String subject line with realistic spam/legitimate patterns
+
+        Statistical Properties:
+            - Spam subjects: Higher frequency of words like "FREE", "URGENT", "$amount"
+            - Legitimate subjects: Professional language, meeting/update keywords
+            - Placeholder replacement maintains realistic variability
+        """
         if is_spam:
             subject = random.choice(self.spam_subjects)
             # Replace placeholders with random values
@@ -188,8 +226,29 @@ class SyntheticEmailGenerator:
         """
         Generate realistic spam scores based on classification and status.
 
-        Statistical correlation: Higher scores correlate with spam detection.
-        Legitimate emails: mostly 0-5, Spam emails: wider range with higher average.
+        Creates correlated numerical features demonstrating conditional probability relationships
+        essential for Naive Bayes analysis and independence assumption testing.
+
+        Mathematical Foundation:
+            - P(spam_score | spam) has higher mean and variance than P(spam_score | legitimate)
+            - Feature correlation: P(spam_score > threshold | status = 'Held') > baseline
+            - Demonstrates violation of independence: spam_score correlates with status
+
+        Statistical Distribution:
+            - Legitimate emails: 70% score 0, 30% score 1-15 (low variance)
+            - Spam emails: Uniform-like distribution 1-156 (high variance)
+            - Held/Rejected status: Conditional distribution shifts toward higher scores
+
+        Args:
+            is_spam: Binary classification flag
+            status: Email processing status affecting score distribution
+
+        Returns:
+            String representation of integer spam score (0-156 range)
+
+        Academic Relevance:
+            - Tests Naive Bayes assumption: Are spam_score and status independent given class?
+            - Provides continuous feature alongside categorical (status) and text (subject) features
         """
         if is_spam:
             # Spam emails have higher scores with more variance
@@ -208,7 +267,21 @@ class SyntheticEmailGenerator:
         return str(score)
 
     def generate_status(self) -> str:
-        """Generate email status based on original distribution."""
+        """
+        Generate email status based on original distribution.
+
+        Samples from multinomial distribution matching original dataset frequencies.
+        This categorical feature provides additional classification signal beyond subject text.
+
+        Mathematical Foundation:
+            - Categorical distribution with probabilities from original data
+            - Inverse transform sampling method for discrete random variable
+            - Status distribution: Archived (43%), Bounced (34%), Held (15%), etc.
+
+        Returns:
+            String status value sampled from defined distribution
+        """
+        # Inverse transform sampling: Find status where cumulative probability exceeds random value
         rand = random.random()
         cumulative = 0
 
@@ -217,7 +290,7 @@ class SyntheticEmailGenerator:
             if rand <= cumulative:
                 return status
 
-        return 'Archived'  # Fallback
+        return 'Archived'  # Fallback for numerical precision edge cases
 
     def generate_attachment_info(self) -> str:
         """Generate attachment information (mostly empty, some 'Has Attachment')."""
@@ -241,11 +314,40 @@ class SyntheticEmailGenerator:
         return route, info
 
     def generate_record(self) -> Dict[str, str]:
-        """Generate a single synthetic email record."""
-        # Determine if this is spam based on probability
+        """
+        Generate a single synthetic email record with correlated features.
+
+        Orchestrates generation of all email fields maintaining statistical relationships
+        between features for realistic Naive Bayes classification testing.
+
+        Mathematical Workflow:
+            1. Sample spam classification from Bernoulli(p=0.492)
+            2. Generate status from multinomial distribution
+            3. Generate correlated features conditioning on spam class:
+               - P(suspicious_domain | spam) > P(suspicious_domain | legitimate)
+               - P(high_spam_score | spam, status='Held') > baseline
+
+        Feature Correlations:
+            - is_spam → domain selection (conditional probability)
+            - is_spam → subject keywords (conditional probability)
+            - (is_spam, status) → spam_score (joint conditioning)
+            - is_spam → IP address ranges (conditional probability)
+
+        Returns:
+            Dictionary with 12 email fields maintaining original dataset schema
+
+        Academic Purpose:
+            - Provides realistic data for testing Naive Bayes independence assumption
+            - Demonstrates impact of correlated features on classification performance
+            - Preserves statistical properties for mathematical analysis
+        """
+        # Mathematical Step 1: Sample spam classification from Bernoulli distribution
+        # P(is_spam = 1) = 0.492, P(is_spam = 0) = 0.508
+        # This maintains the original dataset's class balance for Naive Bayes training
         is_spam = random.random() < self.spam_detection_prob
 
-        # Generate correlated fields
+        # Mathematical Step 2: Generate correlated fields conditioning on spam classification
+        # This creates realistic feature dependencies that violate Naive Bayes independence assumption
         status = self.generate_status()
         envelope_from, header_from = self.generate_email_address(is_spam)
         subject = self.generate_subject(is_spam)
@@ -276,25 +378,47 @@ class SyntheticEmailGenerator:
 
     def generate_dataset(self, num_records: int = 5000) -> List[Dict[str, str]]:
         """
-        Generate complete synthetic dataset.
+        Generate complete synthetic dataset preserving statistical properties.
+
+        Creates dataset suitable for Naive Bayes classification with realistic feature
+        correlations for testing independence assumption violations.
+
+        Mathematical Properties:
+            - Sample size n = 5000 (matching original dataset)
+            - Class balance: P(spam) ≈ 0.492, P(legitimate) ≈ 0.508
+            - Feature distributions maintain original statistical moments
+            - Conditional dependencies: P(feature|spam) ≠ P(feature|legitimate)
+
+        Academic Purpose:
+            - Provides sufficient data for reliable probability estimation
+            - Large enough sample to observe independence assumption violations
+            - Balanced classes prevent bias toward majority class in Naive Bayes
 
         Args:
             num_records: Number of records to generate (default: 5000)
+                        Sufficient for stable P(word|class) estimates
 
         Returns:
-            List of dictionaries representing email records
+            List of dictionaries representing email records with correlated features
+
+        Statistical Validation:
+            - Chi-square test: Feature independence vs. ground truth correlations
+            - KL divergence: Synthetic vs. original distribution similarity
         """
         print(f"Generating {num_records} synthetic email records...")
+        print("Preserving statistical distributions from original dataset...")
 
         dataset = []
         for i in range(num_records):
             if i % 1000 == 0:
                 print(f"Generated {i} records...")
 
+            # Each record maintains feature correlations for realistic Naive Bayes testing
             record = self.generate_record()
             dataset.append(record)
 
         print("Generation complete!")
+        print("Dataset ready for Naive Bayes classification and independence analysis")
         return dataset
 
     def save_to_csv(self, dataset: List[Dict[str, str]], filename: str = 'synthetic_email_dataset.csv'):

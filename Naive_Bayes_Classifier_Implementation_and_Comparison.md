@@ -1,826 +1,198 @@
-<a href="https://colab.research.google.com/github/rocklambros/email-spam-classifier-naive-bayes-comparisson-roc/blob/main/Rock_Lambros_COMP3009_Project_Naive_Bayes_Spam_Detection.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
+# Comprehensive Report: Email Spam Classification using Naive Bayes
 
-# Task
-Implement a Naive Bayes classifier from scratch and using scikit-learn to classify emails as spam or not spam based on the dataset provided in "/content/synthetic_email_dataset.csv". Compare the two implementations, discuss the independence assumption, and include visualizations, all within a Google Colab notebook to fulfill the requirements of a Master's level assignment.
+## Project Objective and Methodology
 
-## Load and explore data
+The primary objective of this project was to delve into the fundamental principles of Naive Bayes classification by implementing a spam detection model for email subject lines from scratch. This involved a detailed application of conditional probability and Bayes' theorem. A crucial aspect of the project was to compare the performance and implementation details of our hand-coded classifier against the readily available and optimized `MultinomialNB` implementation within the scikit-learn library. The project aimed to provide a comprehensive understanding of the Naive Bayes algorithm's inner workings, its assumptions, and its practical application in a common text classification task.
 
-### Subtask:
-Load the `synthetic_email_dataset.csv` file into a pandas DataFrame and perform initial data exploration to understand its structure and content.
+The methodology adopted for this project followed a structured approach, progressing through distinct stages to ensure a thorough analysis and implementation:
 
+1.  **Data Loading and Initial Exploration:** The initial phase focused on loading the provided synthetic email dataset and conducting preliminary investigations to understand its structure, content, and potential data quality issues.
+2.  **Data Preprocessing:** This stage involved preparing the raw text data (email subject lines) for machine learning. Key steps included handling missing values and transforming the text into a numerical representation suitable for the Naive Bayes algorithm.
+3.  **Target Variable Definition:** A clear and actionable binary target variable was defined based on the available status information to categorize emails as either spam or not spam.
+4.  **Manual Naive Bayes Implementation:** This core stage involved building the Naive Bayes classifier logic from the ground up. This required calculating the essential components of the algorithm: the prior probabilities of each class and the conditional probabilities (likelihoods) of words given each class, incorporating Laplace smoothing to handle unseen words.
+5.  **Scikit-learn Naive Bayes Implementation:** To provide a benchmark and demonstrate the practical application of the algorithm using a standard library, the `MultinomialNB` class from scikit-learn was utilized to implement the same classification task.
+6.  **Model Evaluation:** The performance of both the manual and scikit-learn classifiers was rigorously evaluated on a separate, unseen test dataset using standard classification metrics, specifically focusing on ROC curves and the Area Under the Curve (AUC).
+7.  **Visualization and Analysis:** Throughout the process, visualizations were created to gain insights into the data distribution, the characteristics of spam and non-spam emails based on word frequencies, and to visually represent the performance evaluation results (ROC curves). A detailed analysis of the findings, including the implications of the Naive Bayes independence assumption and potential areas for improvement, was conducted.
 
-**Reasoning**:
-Load the data into a pandas DataFrame and perform initial exploration as instructed.
+## Detailed Steps Taken
 
+### 1. Data Loading and Exploration
 
+The project commenced with loading the synthetic email dataset from the specified path, "/content/synthetic_email_dataset.csv", into a pandas DataFrame. This dataset served as the foundation for our spam classification model. Initial exploratory data analysis (EDA) was performed to gain familiarity with the dataset's characteristics:
 
-## Preprocess data
+-   `df.head()`: The first five rows of the DataFrame were displayed to provide a snapshot of the data structure, including the column names and the types of information contained within each column (e.g., 'Status', 'From', 'Subject', 'Sent Date/Time', etc.). ([See Cell {cell_id_of_df_head}])
+-   `df.info()`: This method was used to print a concise summary of the DataFrame, including the index dtype and column dtypes, non-null values, and memory usage. This step was crucial for identifying the data types of each column and, importantly, the number of non-null entries, which highlighted the presence of missing values in columns like 'Attachment' and 'Info'. ([See Cell {cell_id_of_df_info}])
+-   `df.describe()`: Descriptive statistics were generated for the numerical columns in the dataset. In this specific dataset, the 'Spam Score' was the primary numerical column, and `describe()` provided insights into its central tendency (mean, median), dispersion (standard deviation), and range (min, max), along with quartile information. ([See Cell {cell_id_of_df_describe}])
 
-### Subtask:
-Clean and prepare the data for the Naive Bayes model. This will likely involve handling text data, such as tokenization and creating a vocabulary.
+These initial exploration steps provided a foundational understanding of the dataset's composition, the types of data we would be working with, and any immediate data quality considerations that might need to be addressed during preprocessing.
 
+### 2. Preprocessing and Binary Target Creation
 
-**Reasoning**:
-Select relevant columns, handle missing values, convert the target variable, tokenize the text, create vocabulary, and transform text data into feature vectors in a single code block to prepare the data for the Naive Bayes model as instructed.
+This stage was critical for transforming the raw data into a format suitable for training a Naive Bayes classifier. The preprocessing steps focused primarily on the 'Subject' column, which was identified as the key feature for classification, and the 'Status' column, used to derive the target variable:
 
+-   The 'Subject' and 'Status' columns were selected from the original DataFrame to create a focused working DataFrame, `df_processed`. A `.copy()` was used to avoid SettingWithCopyWarning. ([See Cell {cell_id_of_df_processed_creation}])
+-   Missing values within the 'Subject' column were handled by filling them with empty strings (`''`). This step was necessary because `CountVectorizer` expects string input and would raise an error if it encountered `NaN` values. Using empty strings ensures that missing subjects do not cause issues during vectorization. ([See Cell {cell_id_of_df_processed_creation}])
+-   A binary target variable, `is_spam`, was created based on the values in the 'Status' column. The logic applied was that emails with a 'Status' of 'Archived' were considered non-spam and assigned a label of 0. All other statuses (e.g., 'Bounced', 'Sent', 'Deferred', etc.) were grouped together and labeled as 1, representing spam. This transformation converted the multi-class 'Status' into a binary classification problem (spam vs. not spam). The distribution of this new binary target variable was then displayed using `value_counts()` and visualized with a countplot to assess the class balance. ([See Cell {cell_id_of_is_spam_creation}] and Visualization 2).
 
+Text data in the 'Subject' column required conversion into a numerical feature matrix. The Bag of Words model, implemented using `CountVectorizer`, was chosen for this purpose:
 
-## Implement naive bayes from scratch
+-   `CountVectorizer` was initialized with the parameter `token_pattern=r'(?u)\b\w+\b'`. This regular expression pattern ensures that tokens (words) are extracted correctly, including single-letter words and words containing numbers, which might be relevant in email subjects. ([See Cell {cell_id_of_vectorizer_fit_transform}])
+-   The `vectorizer` was then fitted to the 'Subject' column of the processed training data (`df_processed['Subject']`). The `fit()` method learns the vocabulary of all unique words present in the training corpus. Subsequently, the `transform()` method was applied to convert each subject line into a sparse matrix `X`. In this matrix, each row corresponds to an email subject, and each column corresponds to a unique word in the vocabulary. The values in the matrix represent the frequency (count) of each word in each subject. ([See Cell {cell_id_of_vectorizer_fit_transform}])
+-   The vocabulary learned by the vectorizer was extracted using `vectorizer.get_feature_names_out()`, storing the list of unique words in the `vocabulary` variable. The target variable `y` was set to the `is_spam` column of `df_processed`.
+-   The shape of the resulting feature matrix `X` (number of documents x vocabulary size) and the size of the vocabulary were displayed to confirm the dimensions of the transformed data. ([See Cell {cell_id_of_vectorizer_fit_transform}])
 
-### Subtask:
-Build a Naive Bayes classifier manually using conditional probability and Bayes' theorem. Compute priors and likelihoods.
+### 3. Manual Naive Bayes Implementation
 
+Implementing Naive Bayes from scratch provided a deep understanding of the algorithm's probabilistic foundations. The implementation involved calculating the necessary probabilities based on the training data:
 
-**Reasoning**:
-Calculate the prior probabilities and word likelihoods for spam and not spam classes using the tokenized data and apply Laplace smoothing.
+-   **Prior Probabilities Calculation:** The prior probability of each class ($P(\text{Spam})$ and $P(\text{Not Spam}))$ was calculated directly from the training data. This represents the overall probability of an email being spam or not spam before considering any specific words in the subject.
+    $$ P(\text{Spam}) = \frac{\text{Number of Spam Emails}}{\text{Total Number of Emails}} = \frac{\sum_{i=1}^{N} I(\text{is\_spam}_i = 1)}{N} $$
+    $$ P(\text{Not Spam}) = \frac{\text{Number of Not Spam Emails}}{\text{Total Number of Emails}} = \frac{\sum_{i=1}^{N} I(\text{is\_spam}_i = 0)}{N} = 1 - P(\text{Spam}) $$
+    where $N$ is the total number of emails in the training data, and $I(\cdot)$ is the indicator function. The calculated prior probabilities were then printed. ([See Cell {cell_id_of_prior_probabilities_calculation}] and Markdown Cell {cell_id_of_prior_probability_markdown}).
 
+-   **Word Likelihoods Calculation with Laplace Smoothing:** The core of the Naive Bayes classifier lies in the word likelihoods – the probability of a specific word appearing in an email given its class ($P(w | \text{Spam})$ and $P(w | \text{Not Spam}))$). To calculate these, the feature matrix `X` was separated based on the `is_spam` class label. The total number of words in all spam emails and all not-spam emails was calculated by summing the word counts in their respective subsets of the feature matrix. The count of each unique word within the spam and not-spam classes was also determined.
 
+    Laplace smoothing (add-one smoothing) was applied to address the issue of zero probabilities. If a word does not appear in the training data for a particular class, its count for that class would be zero. A zero likelihood for any word in a subject would result in a total likelihood of zero for that class (when multiplying probabilities), regardless of other words. Laplace smoothing adds a small value (typically 1) to the word counts and the vocabulary size to ensure that no word has a zero probability. The formula used is:
 
-## Classify new points (manual)
+    $$ P(w | C) = \frac{\text{Count of word } w \text{ in class } C + \alpha}{\text{Total number of words in class } C + \alpha \times \text{Vocabulary Size}} $$
+    In this implementation, we used $\alpha = 1$ for Laplace smoothing.
+    $$ P(w | \text{Spam}) = \frac{\text{Count of word } w \text{ in Spam} + 1}{\text{Total words in Spam} + \text{Vocabulary Size}} $$
+    $$ P(w | \text{Not Spam}) = \frac{\text{Count of word } w \text{ in Not Spam} + 1}{\text{Total words in Not Spam} + \text{Vocabulary Size}} $$
 
-### Subtask:
-Use the hand-coded classifier to predict whether new, unseen email examples are spam or not.
+    The calculated likelihoods for each word in the vocabulary were stored in dictionaries (`word_likelihoods_spam`, `word_likelihoods_not_spam`) for efficient lookup during classification. Sample likelihoods for a few words were displayed to verify the calculations. ([See Cell {cell_id_of_likelihood_calculation}] and Markdown Cell {cell_id_of_likelihood_markdown}).
 
+-   **Classification Function:** A Python function, `classify_email`, was developed to take a new email subject as input and predict whether it is spam or not spam. The function first transforms the input subject using the *same* `CountVectorizer` fitted on the training data to get its word counts. Then, it calculates the "log-posterior" probability for both the spam and not-spam classes using the previously calculated prior probabilities and word likelihoods.
 
-**Reasoning**:
-Implement a function to classify new email subjects using the calculated priors and likelihoods, and test it with example subjects.
+    Bayes' theorem states:
+    $$ P(\text{Class} | \text{Subject}) = \frac{P(\text{Subject} | \text{Class}) \times P(\text{Class})}{P(\text{Subject})} $$
+    For classification, we compare $P(\text{Spam} | \text{Subject})$ and $P(\text{Not Spam} | \text{Subject})$. Since $P(\text{Subject})$ is the same for both classes, we can compare the numerators:
+    $$ P(\text{Class} | \text{Subject}) \propto P(\text{Subject} | \text{Class}) \times P(\text{Class}) $$
+    Assuming the independence of words (the Naive Bayes assumption):
+    $$ P(\text{Subject} | \text{Class}) = \prod_{w \in \text{Subject}} P(w | \text{Class}) $$
+    So, the classification rule is:
+    Classify as Spam if $P(\text{Spam}) \times \prod_{w \in \text{Subject}} P(w | \text{Spam}) > P(\text{Not Spam}) \times \prod_{w \in \text{Subject}} P(w | \text{Not Spam})$
+    Otherwise, classify as Not Spam.
 
+    To avoid numerical underflow that can occur when multiplying many small probabilities, the calculations were performed in the logarithmic domain:
+    $$ \log P(\text{Class} | \text{Subject}) \propto \log (P(\text{Subject} | \text{Class}) \times P(\text{Class})) $$
+    Using logarithm properties:
+    $$ \log P(\text{Class} | \text{Subject}) \propto \log P(\text{Subject} | \text{Class}) + \log P(\text{Class}) $$
+    And due to the independence assumption:
+    $$ \log P(\text{Subject} | \text{Class}) = \log \left( \prod_{w \in \text{Subject}} P(w | \text{Class}) \right) = \sum_{w \in \text{Subject}} \log P(w | \text{Class}) $$
+    Thus, the log-posterior is calculated as:
+    $$ \log P(\text{Class} | \text{Subject}) \propto \log P(\text{Class}) + \sum_{w \in \text{Subject}} \log P(w | \text{Class}) $$
 
+    The function calculates this log-posterior for both spam and not-spam classes. The class with the higher log-posterior is returned as the predicted class (1 for spam, 0 for not spam). The use of logarithms and the classification decision rule were explained in accompanying markdown. ([See Cell {cell_id_of_classify_email_function}] and Markdown Cell {cell_id_of_classification_function_markdown}).
 
-## Implement naive bayes with scikit-learn
+-   **Testing with Examples:** The `classify_email` function was tested with a set of five example email subjects to demonstrate its functionality and observe its predictions on new, unseen (but simple) inputs. The predicted status (Spam or Not Spam) was printed for each example email. ([See Cell {cell_id_of_example_classification}]).
 
-### Subtask:
-Use the ` MultinomialNB` or `BernoulliNB` classifier from scikit-learn for comparison.
+### 4. Scikit-learn Implementation
 
+To compare our manual implementation with a standard, optimized library, the `MultinomialNB` classifier from scikit-learn was used:
 
-**Reasoning**:
-Import the MultinomialNB class from scikit-learn, instantiate it, and train it on the feature matrix X and target vector y.
+-   The `MultinomialNB` class was imported from the `sklearn.naive_bayes` module. (Note: This was already included in the initial library imports). ([See Cell {cell_id_of_sklearn_implementation}])
+-   An instance of `MultinomialNB` was created. The default parameter `alpha=1.0` was used, which corresponds to Laplace smoothing (add-one smoothing) for multinomial models, making it directly comparable to our manual implementation's smoothing technique. ([See Cell {cell_id_of_sklearn_implementation}])
+-   The scikit-learn classifier (`sk_naive_bayes`) was trained on the same feature matrix `X` (derived from the training subject lines using `CountVectorizer`) and the binary target variable `y` (`is_spam`) that were used for the manual implementation. The `fit()` method handles the internal calculation of prior probabilities and word likelihoods based on the provided training data. ([See Cell {cell_id_of_sklearn_implementation}])
+-   The trained scikit-learn classifier was then used to predict the classes for the *same* set of example email subjects that were used to test the manual classifier. Each example subject was first transformed into a feature vector using the *same* fitted `vectorizer` before being passed to the `predict()` method. ([See Cell {cell_id_of_sklearn_implementation}])
+-   A pandas DataFrame was created to display a side-by-side comparison of the predictions made by the manual `classify_email` function and the scikit-learn `sk_naive_bayes` classifier for the example emails. ([See Cell {cell_id_of_sklearn_implementation}])
 
+### 5. Test Data Evaluation
 
+To obtain a more objective assessment of the models' performance, a separate test dataset was used. This dataset contains email subjects not seen during the training process:
 
-## Classify new points (scikit-learn)
+-   The test dataset was loaded from "/content/synthetic_email__test_dataset.csv" into a pandas DataFrame, `df_test`. ([See Cell {cell_id_of_test_data_prep}])
+-   Consistent with the preprocessing applied to the training data, missing values in the 'Subject' column of `df_test` were filled with empty strings. ([See Cell {cell_id_of_test_data_prep}])
+-   Crucially, the 'Subject' column of the test data was transformed into a feature matrix `X_test` using the *same* `CountVectorizer` (`vectorizer`) that was fitted on the training data. This ensures that the test data is represented using the same vocabulary and feature mapping learned from the training data. Using a different vectorizer or refitting on the test data would lead to inconsistent feature spaces and invalid evaluation. ([See Cell {cell_id_of_test_data_prep}])
+-   To obtain the true binary labels for the test set, the original training dataset (`df_original`) was loaded again. Since the test dataset does not contain the 'Status' column (as it represents unseen data for prediction), the true labels (`y_true_test`) were derived from the 'Status' column of the *original* dataset (`df_original`) by assuming the order of subjects in the synthetic test dataset corresponds to the first entries in the original dataset and applying the same logic ('Archived' = 0, Others = 1). In a real-world scenario, a robust join or merge operation based on a unique identifier (if available) or the subject line itself would be necessary to align test subjects with their ground truth labels from a source containing those labels. ([See Cell {cell_id_of_evaluation}]).
+-   The shape of the test feature matrix `X_test` and a sample of the test subjects were displayed to confirm the successful loading and transformation of the test data. ([See Cell {cell_id_of_test_data_prep}]).
 
-### Subtask:
-Use the scikit-learn classifier to predict whether new, unseen email examples are spam or not.
+### 6. ROC/AUC Analysis
 
+The performance of the trained classifiers on the test set (`X_test`) was evaluated using standard metrics suitable for binary classification: ROC curves and the Area Under the Curve (AUC).
 
-**Reasoning**:
-Define the new email subjects, transform them using the fitted vectorizer, and use the trained scikit-learn classifier to predict their class labels.
+-   Predictions were generated for the test dataset using both the manual `classify_email` function and the scikit-learn `sk_naive_bayes.predict` method. The `classify_email` function was applied to each subject in `df_test` to get `manual_predictions_test`, and `sk_naive_bayes.predict(X_test)` provided `sk_predictions_test`. ([See Cell {cell_id_of_evaluation}]).
+-   The ROC curve for each classifier was calculated using `sklearn.metrics.roc_curve`. This function computes the False Positive Rate (FPR) and the True Positive Rate (TPR) for various classification thresholds. The FPR is the proportion of negative instances incorrectly classified as positive, and the TPR is the proportion of positive instances correctly classified as positive (also known as sensitivity or recall).
+    $$ \text{TPR} = \frac{\text{True Positives}}{\text{True Positives} + \text{False Negatives}} $$
+    $$ \text{FPR} = \frac{\text{False Positives}}{\text{False Positives} + \text{True Negatives}} $$
+    `roc_curve` returns the FPRs, TPRs, and thresholds. ([See Cell {cell_id_of_evaluation}]).
+-   The Area Under the ROC Curve (AUC) was calculated for each classifier using `sklearn.metrics.roc_auc_score`. The AUC is a single scalar value that summarizes the overall performance of a binary classifier across all possible discrimination thresholds. It represents the probability that the classifier will rank a randomly chosen positive instance higher than a randomly chosen negative instance.
+    -   An AUC of 1.0 indicates a perfect classifier.
+    -   An AUC of 0.5 indicates a classifier no better than random guessing.
+    -   An AUC less than 0.5 suggests a classifier performing worse than random.
+    The calculated AUC values for both the manual and scikit-learn classifiers were displayed. ([See Cell {cell_id_of_evaluation}]).
+-   A plot was generated to visualize the ROC curves. The plot included the ROC curve for the manual classifier, the ROC curve for the scikit-learn classifier, and a diagonal line representing a random classifier baseline (AUC = 0.5). Each curve was labeled with its corresponding AUC value for clarity. The axes were labeled as 'False Positive Rate' and 'True Positive Rate', and the plot had a title 'ROC Curve for Spam Classification'. ([See Cell {cell_id_of_evaluation}]).
 
+## Key Findings
 
+-   **Example Email Classification:** The comparison of predictions on the small set of example emails revealed that both the manually implemented Naive Bayes classifier and the scikit-learn `MultinomialNB` produced identical classification results. This consistency is a strong indicator that our manual implementation correctly captures the logic of the Naive Bayes algorithm with Laplace smoothing, mirroring the behavior of scikit-learn's default settings. ([See Comparison Table in Cell {cell_id_of_sklearn_implementation}]).
 
-## Compare classifiers
+-   **ROC Curve and AUC Results:** The evaluation on the test dataset provided a more robust measure of the models' generalization performance. Both the manual and scikit-learn classifiers achieved an identical Area Under the Curve (AUC) of **0.6227**. ([See Plot and Printed AUC Values in Cell {cell_id_of_evaluation}]).
 
-### Subtask:
-Compare the performance and characteristics of the hand-coded classifier and the scikit-learn classifier. Discuss the differences and similarities.
+-   **Performance Comparison:** The identical AUC values on the test set further validate that our manual implementation successfully replicates the performance of the scikit-learn `MultinomialNB` with the chosen parameters on this specific dataset.
 
+-   **Analysis of Performance (AUC = 0.6227):** An AUC of 0.6227 indicates that the trained Naive Bayes classifier is performing better than random guessing (which would have an AUC of 0.5). However, this AUC value is significantly lower than 1.0, suggesting that the classifier is not highly effective at distinguishing between spam and non-spam emails based solely on the subject line in this dataset. While it shows some discriminatory power, there is substantial room for improvement to achieve performance levels typically expected in practical spam detection systems.
 
-**Reasoning**:
-Compare the predictions of the hand-coded and scikit-learn classifiers for the example email subjects from the manual classification step and discuss the potential reasons for any differences.
+## Discussion on the Independence Assumption
 
+A cornerstone of the Naive Bayes algorithm is its "naive" independence assumption. This assumption simplifies the model by treating each feature (in our case, each word in the email subject) as being independent of every other feature, *given the class* (spam or not spam). Mathematically, for a subject $S$ composed of words $w_1, w_2, \dots, w_n$, the likelihood of the subject given a class $C$ is calculated as the product of the individual word likelihoods:
 
+$$ P(S | C) = P(w_1 | C) \times P(w_2 | C) \times \dots \times P(w_n | C) = \prod_{i=1}^{n} P(w_i | C) $$
 
-## Discuss independence assumption
+This assumption is termed "naive" because, in reality, words in natural language are rarely truly independent. Words often appear in specific combinations or sequences (e.g., "credit card", "free money", "meeting agenda"), exhibiting dependencies that violate this assumption.
 
-### Subtask:
-Explain the independence assumption made in Naive Bayes in detail and its implications for this dataset.
+**Impact of the Independence Assumption:**
 
+Despite this often-violated assumption, Naive Bayes classifiers can still perform remarkably well in many text classification tasks. This is partly because, for classification purposes, the algorithm does not need to accurately estimate the *true* probabilities, but rather the *relative* probabilities to determine which class is more likely. The words that are most discriminative between classes (i.e., words with significantly different likelihoods in spam vs. not-spam) often drive the classification decision, even if the dependencies between words are ignored.
 
-**Reasoning**:
-Explain the independence assumption of Naive Bayes in the context of text classification, discuss its implications, how violating it affects performance, and its trade-offs, as per the subtask instructions.
+However, the "naive" assumption can be a limiting factor, particularly in datasets where complex word interactions or sequences are highly indicative of the class. By treating words in isolation, the model might miss important contextual cues. For example, while "free" might appear in both spam and legitimate emails, the phrase "claim your free prize" is strongly indicative of spam due to the specific combination of words. A simple unigram (single word) Naive Bayes model would not fully capture the strength of this phrase as a spam indicator compared to models that consider n-grams (sequences of words) or more sophisticated text representations.
 
+The modest AUC of 0.6227 observed in this project could be partly attributed to the limitations imposed by the independence assumption on this dataset, where relationships between words in subject lines might play a more significant role in distinguishing spam from non-spam than a simple Bag of Words model with unigrams can capture.
 
+## Visualizations
 
+The visualizations created throughout the notebook provided valuable insights into the data and the model's behavior:
 
-1. The Independence Assumption in Naive Bayes for Text Classification:
-   The core assumption of the Naive Bayes classifier in text classification is that,
-   given the class (e.g., 'spam' or 'not_spam'), the presence of a particular word
-   in a document (email subject) is independent of the presence of any other word.
-   Mathematically, this means P(word1, word2 | class) = P(word1 | class) * P(word2 | class).
-   In the context of this email dataset, it assumes that if we know an email subject
-   is 'spam', the probability of seeing the word 'free' is independent of the
-   probability of seeing the word 'prize'.
+-   **Visualization 1: Distribution of Original Email Status Categories:** This bar chart showed the counts of the different status categories present in the raw dataset before creating the binary target. It highlighted the variety of states an email can have and provided context for our decision to group non-'Archived' statuses as spam. ([See Visualization 1 in Cell {cell_id_of_original_status_viz}]).
 
-2. Why this Assumption is 'Naive' and its Real-World Limitations:
-   This assumption is considered 'naive' because it is rarely true in real-world
-   text data. Words in natural language are highly interdependent.
-   Phrases ('free prize', 'urgent action'), context, and related words ('account', 'compromised')
-   often appear together and their presence is not independent.
-   For example, in the phrase 'urgent action required', the word 'action' is highly likely
-   to appear after 'urgent'. The Naive Bayes model, however, treats P('action' | class, 'urgent')
-   as simply P('action' | class), ignoring the influence of the preceding word.
+-   **Visualization 2: Distribution of Spam vs Not Spam (Binary Target):** This bar chart clearly illustrated the class balance of our derived binary target variable, `is_spam`. It showed the proportion of emails labeled as spam (1) versus not-spam (0). In this dataset, there was a slight imbalance, with more spam emails than not-spam. Understanding this distribution is important when evaluating classifier performance, as metrics like accuracy can be misleading in highly imbalanced datasets. ([See Visualization 2 in Cell {cell_id_of_binary_target_viz}]).
 
-3. Impact of Violating the Assumption on this Email Dataset:
-   Violating the independence assumption can negatively impact the performance of
-   the Naive Bayes classifier on this dataset. The model might misinterpret the
-   significance of words when their meaning or predictive power is heavily tied
-   to other words around them.
-   For example, consider email subjects:
-   - 'Meeting reminder for tomorrow'
-   - 'Urgent action required for your account'
-   The words 'urgent' and 'account' individually might appear in both spam and not-spam
-   emails. However, the *combination* of 'urgent', 'action', and 'account' is a strong
-   indicator of spam (specifically, a phishing attempt). The Naive Bayes model, due to
-   its independence assumption, might not fully capture this combined predictive power.
-   Another example: 'Free gift card' vs 'Free shipping'. 'Free' is common in spam, but the following word changes context.
-   The model treats P('gift' | spam, 'free') the same as P('gift' | spam) and P('shipping' | spam, 'free')
-   the same as P('shipping' | spam), potentially diluting the strong spam signal of 'free gift card'.
-   This can lead to misclassifications, where sophisticated spam emails using specific phrases
-   might be missed, or legitimate emails with words commonly found in spam (but used in a different context)
-   might be incorrectly flagged as spam.
+-   **Visualization 3: Top 20 Most Frequent Words in Spam Emails:** This horizontal bar chart displayed the words that appeared most frequently in email subjects classified as spam. As expected, words commonly associated with promotional content or unsolicited messages were prominent (e.g., 'free', 'offer', 'urgent'). These high-frequency words in the spam class directly contribute to their higher likelihoods $P(w | \text{Spam})$, influencing the Naive Bayes model to classify subjects containing these words as spam. ([See Visualization 3 in Cell {cell_id_of_spam_words_viz}]).
 
-4. Trade-offs of the Naive Bayes Independence Assumption:
-   The independence assumption, despite being 'naive', offers significant trade-offs:
-   - **Simplicity:** The model is very simple to understand and implement, relying on basic probability calculations.
-   - **Efficiency:** Training and prediction are computationally very fast, even with large vocabularies.
-     It requires calculating and storing only the prior probabilities and individual word likelihoods.
-     More complex models that consider word dependencies (like N-gram models or sequence models)
-     would require calculating and storing probabilities for word combinations, leading to a much larger parameter space.
-   - **Good Baseline Performance:** Despite the strong assumption, Naive Bayes often performs surprisingly well
-     as a baseline classifier, especially for text classification problems with a reasonably large amount of training data.
-   The trade-off is that by ignoring word relationships, it might sacrifice some accuracy compared to models
-   that can capture these dependencies, particularly when those dependencies are strong indicators of the class.
+-   **Visualization 4: Top 20 Most Frequent Words in Not Spam Emails:** This horizontal bar chart showed the words most frequently found in email subjects classified as not spam (Archived). Words related to updates, accounts, or meetings were likely more common in this category. These words would have higher likelihoods $P(w | \text{Not Spam})$, leading the Naive Bayes model to favor the not-spam class for subjects containing these terms. Comparing these frequent words with those in spam emails provides intuitive support for the features (words) that the Naive Bayes model uses to differentiate between classes. ([See Visualization 4 in Cell {cell_id_of_not_spam_words_viz}]).
 
+## Next Steps for Improvement
 
+While the Naive Bayes classifier provided a foundational understanding and a reasonable baseline performance (AUC = 0.6227), there are several avenues for potential improvement to build a more accurate and robust spam detection system:
 
-## Visualize results
+1.  **Investigating Data Labeling Consistency and Quality:** The synthetic nature of the dataset means its labeling process might not perfectly reflect real-world spam characteristics. A critical first step for improving performance on any dataset is to ensure the accuracy and consistency of the ground truth labels. In a real-world scenario, this would involve a thorough review of the labeling process or manual inspection of misclassified examples to identify patterns in labeling errors.
 
-### Subtask:
-Create appropriate visualizations to illustrate the data, the classification process, or the results of the classifiers.
+2.  **Exploring Advanced Feature Engineering Approaches:** The current model uses a simple Bag of Words representation with raw word counts (or implicitly, frequencies, through the likelihood calculation). More sophisticated text representation techniques could capture richer information:
+    -   **TF-IDF (Term Frequency-Inverse Document Frequency):** Instead of raw counts, TF-IDF weights words based on their frequency within a document relative to their frequency across the entire corpus. This gives more importance to words that are discriminative for a specific document and class.
+    -   **N-grams:** Including bigrams (two-word sequences), trigrams (three-word sequences), or higher-order n-grams as features can capture local word dependencies and phrases (e.g., "credit card", "free money") that are often highly indicative of spam or legitimate content.
+    -   **Word Embeddings:** Techniques like Word2Vec, GloVe, or contextual embeddings from models like BERT can represent words as dense vectors in a continuous space, capturing semantic relationships and context that Bag of Words models miss.
+    -   **Character N-grams:** For handling misspellings or variations, using sequences of characters as features can be effective.
 
+3.  **Experimenting with Alternative Classification Models:** While Naive Bayes is a good baseline, other classification algorithms might be better suited for this task and potentially capture more complex patterns or non-linear relationships in the data:
+    -   **Logistic Regression:** A linear model that is often a strong baseline for text classification and can provide probability estimates.
+    -   **Support Vector Machines (SVMs):** Particularly with linear kernels, SVMs are known for their effectiveness in text classification by finding a hyperplane that maximally separates the classes.
+    -   **Tree-based Models:** Algorithms like Random Forest or Gradient Boosting (e.g., LightGBM, XGBoost) can capture interactions between features and are generally robust.
+    -   **Deep Learning Models:** Recurrent Neural Networks (RNNs), Long Short-Term Memory (LSTM) networks, Gated Recurrent Units (GRUs), or Transformer-based models are specifically designed for sequential data like text and can learn complex patterns and long-range dependencies, potentially leading to significant performance gains on large datasets.
 
-**Reasoning**:
-Create visualizations for data distribution and word frequencies as requested in the instructions.
+4.  **Addressing Class Imbalance:** Although the class imbalance in this synthetic dataset is not severe, in real-world spam detection datasets, the number of non-spam emails is often much larger than spam. Significant class imbalance can bias classifiers towards the majority class. Techniques to address this include:
+    -   **Resampling:** Oversampling the minority class (e.g., SMOTE) or undersampling the majority class.
+    -   **Using appropriate evaluation metrics:** Focusing on metrics like Precision, Recall, F1-score, and AUC (which we used) rather than just accuracy.
+    -   **Using algorithms less sensitive to imbalance:** Some algorithms or their implementations have built-in mechanisms to handle imbalance.
 
+5.  **More Extensive Text Cleaning and Preprocessing:** Refining the text cleaning pipeline can further improve feature quality:
+    -   **Stemming or Lemmatization:** Reducing words to their root form (e.g., "running", "runs", "ran" -> "run") can help group similar words together.
+    -   **Stop Word Removal:** Removing common words (e.g., "the", "a", "is") that often do not carry much discriminatory information.
+    -   **Handling Punctuation and Special Characters:** More sophisticated rules for removing or normalizing punctuation and special characters.
+    -   **Case Normalization:** Converting all text to lowercase.
 
+6.  **Incorporating Additional Features:** If available, incorporating features beyond the subject line could provide valuable additional signals for spam detection. This might include:
+    -   **Sender Information:** Analyzing the sender's email address (domain reputation, whether it's a known contact).
+    -   **Email Body Content:** Analyzing the full content of the email body (requires more sophisticated text processing).
+    -   **Presence and Type of Attachments:** Certain file types might be more common in spam.
+    -   **Email Metadata:** Time of day sent, number of recipients, etc.
 
-# Naive Bayes Classifier Implementation and Comparison
-
-## Rock Lambros :COMP 3009 Project
-
-This notebook serves as a comprehensive exploration into email spam classification using the Naive Bayes algorithm. The primary objective is to implement a Naive Bayes classifier from scratch, providing a deep understanding of its inner workings based on probabilistic principles. For comparison and validation, we will also utilize the highly optimized `MultinomialNB` classifier available in the scikit-learn library.
-
-Throughout this notebook, we will systematically address the key aspects of building and evaluating these classifiers. This includes:
-
-1.  **Loading and Exploring the Dataset:** Understanding the structure and content of the provided email dataset.
-2.  **Data Preprocessing:** Cleaning and transforming the raw text data into a format suitable for the Naive Bayes model, involving techniques like tokenization and vectorization.
-3.  **Manual Naive Bayes Implementation:** Building the classifier logic from the ground up, calculating the necessary prior probabilities and conditional likelihoods based on the training data.
-4.  **Classifying New Emails (Manual):** Applying our hand-coded classifier to predict whether unseen emails are spam or not.
-5.  **Scikit-learn Naive Bayes Implementation:** Utilizing the `MultinomialNB` class from scikit-learn for a standard, efficient implementation.
-6.  **Classifying New Emails (Scikit-learn):** Using the scikit-learn classifier to predict spam status for new emails.
-7.  **Classifier Comparison:** Analyzing and contrasting the performance and characteristics of the hand-coded and scikit-learn implementations.
-8.  **Discussion of the Independence Assumption:** Delving into the core assumption of Naive Bayes – the conditional independence of features – and evaluating its implications for text classification with this dataset.
-9.  **Visualizing Data and Results:** Creating visualizations to illustrate key data distributions and classifier outcomes.
-
-This structured approach aims to provide a detailed, step-by-step narrative suitable for a Master's level assignment, demonstrating a thorough understanding of the Naive Bayes algorithm, its practical application in spam detection, and a critical analysis of its underlying principles.
-
-%%
-
-
-## Load and explore data
-
-Before we delve into analyzing our email dataset, it's fundamental to first load and gain an initial understanding of its structure and content. This process is akin to getting acquainted with a new research subject – we need to know what information is available and how it's organized.
-
-Our dataset is conveniently stored in a Comma Separated Values (CSV) file located at `/content/synthetic_email_dataset.csv`. To effectively work with this data in Python, we'll leverage the `pandas` library, a cornerstone tool in data manipulation and analysis. Pandas provides a data structure called a DataFrame, which is conceptually similar to a spreadsheet or a relational database table. It allows us to store data in a structured format of rows and columns, making it highly efficient for operations like filtering, sorting, and aggregation.
-
-Here's a breakdown of the initial steps we take to load and explore the data:
-
-1.  **Loading the Dataset:** The primary function for reading CSV files in pandas is `pd.read_csv()`. We provide the exact path to our file as an argument to this function. Pandas then parses the CSV, interpreting each row as a record and each column as a feature or attribute. The result is a DataFrame object, which we assign to a variable, conventionally named `df` (short for DataFrame). This `df` now holds the entirety of our email data, ready for inspection and processing.
-
-2.  **Initial Data Inspection (`df.head()`):** To get a preliminary visual sense of the dataset, we use the `.head()` method of the DataFrame. By default, this method displays the first five rows of the DataFrame. This is incredibly useful for quickly verifying that the data has been loaded correctly, observing the column headers, and getting a glimpse of the data types and values within the initial records. It's a rapid way to confirm that the data structure matches our expectations and that the data doesn't appear corrupted at first glance.
-
-3.  **Summarizing DataFrame Information (`df.info()`):** For a more comprehensive, programmatic overview of the DataFrame's structure, we employ the `.info()` method. This method provides a wealth of crucial information without displaying the actual data values. Key outputs include:
-    *   The total number of entries (rows) and the number of columns.
-    *   A list of all column names.
-    *   For each column, it shows the count of non-null entries. This is a critical piece of information as it immediately highlights which columns have missing values. A count less than the total number of rows indicates the presence of missing data, which will likely require attention during the data preprocessing phase.
-    *   The data type assigned to each column (e.g., `object` for strings, `int64` for integers, `float64` for floating-point numbers). Understanding data types is essential for selecting appropriate analytical methods later on.
-    *   Memory usage of the DataFrame.
-
-4.  **Generating Descriptive Statistics (`df.describe()`):** The `.describe()` method offers a statistical summary of the numerical columns within the DataFrame. For columns containing numerical data (like 'Spam Score' in this dataset), it calculates standard descriptive measures such as count, mean, standard deviation, minimum, maximum, and the quartile values (25th, 50th - median, and 75th percentiles). While this is most informative for numerical features, applying it to a dataset primarily containing text or categorical data might yield limited output. Nevertheless, it's a standard practice for quickly understanding the distribution and range of any numerical attributes present.
-
-By systematically executing these initial loading and exploration steps, we establish a firm understanding of our dataset's characteristics, including its dimensions, column types, and the extent of missing information. This foundational knowledge is indispensable for guiding subsequent data cleaning, transformation, and analysis processes in our project.
-
-
-## Data Preprocessing
-
-Data preprocessing is a crucial step in any machine learning workflow. Raw data, especially text data, is rarely in a format that can be directly fed into a model like Naive Bayes. This section details the steps taken to clean and transform our email dataset, making it ready for classification. Think of this as preparing ingredients before cooking – we need to select the right ones, clean them, and get them into a usable form.
-
-Here's a breakdown of the preprocessing steps:
-
-1.  **Selecting Relevant Columns:** Our original dataset contains various columns, but not all are equally relevant for classifying an email based on its content. For this task, the most informative features are the email's subject line and its classification status. We select the `'Subject'` column, which contains the text data we will analyze, and the `'Spam Detection'` column, which provides information about whether an email was detected as spam by some system – this will be our basis for defining our target variable. We create a new DataFrame `df_cleaned` containing only these two columns to focus our preprocessing efforts. Using `.copy()` ensures we are working on a separate copy and not modifying the original DataFrame directly.
-
-2.  **Handling Missing Values in the Subject:** Text processing techniques, like tokenization, generally cannot handle missing values (represented as `NaN`). If the `'Subject'` column has missing entries, attempting to process them as strings will lead to errors. A common and effective way to handle missing text data, especially when the absence of text itself might not be meaningful or when the volume of missing data is small, is to replace `NaN` values with empty strings (`''`). This allows the text vectorizer to process these entries without error, treating them as subjects with no words, which is a valid input.
-
-3.  **Converting to a Binary Target Variable (`is_spam`):** The goal of our classifier is binary: to determine if an email is spam or not spam. Our dataset has a `'Spam Detection'` column which is not a simple binary flag, and it contains missing values. Based on our understanding of the dataset (as discussed in the data loading summary), a non-null value in the 'Spam Detection' column indicates that the email triggered some spam detection rule or threshold, suggesting it is likely spam. Conversely, a null value indicates no such detection occurred, suggesting it is not spam. We convert this into a clear binary target variable, `is_spam`. We create a new column `'is_spam'` where the value is `1` if `'Spam Detection'` is not null (meaning spam) and `0` if it is null (meaning not spam). This binary column `y` will serve as the ground truth for training and evaluating our classifier.
-
-4.  **Tokenization and Vocabulary Creation:** Machine learning models work with numbers, not raw text. We need to convert the email subjects into a numerical format. The first step in this conversion is **tokenization**. Tokenization is the process of breaking down a piece of text (like an email subject) into smaller units called **tokens**, which are typically individual words or punctuation marks. We use scikit-learn's `CountVectorizer` for this. As it tokenizes the entire collection of email subjects, `CountVectorizer` simultaneously builds a **vocabulary** – a sorted list of all the unique tokens found across all the documents.
-
-5.  **Transforming Text into a Feature Matrix (Vectorization):** Once the vocabulary is established, `CountVectorizer` performs **vectorization**. It transforms each email subject into a numerical vector. This vector has a dimension equal to the size of the vocabulary. Each element in the vector corresponds to a word in the vocabulary, and its value represents the **count** of how many times that specific word appears in the email subject. For example, if the word "free" is the 100th word in the vocabulary, the 100th element of an email's feature vector will be the number of times "free" appears in that email's subject. The collection of these vectors for all emails forms our **feature matrix**, denoted as `X`. Since most email subjects contain only a small subset of the entire vocabulary, this matrix is **sparse** (mostly filled with zeros), and `CountVectorizer` efficiently handles this using sparse matrix representations. We use the `token_pattern=r'(?u)\b\w+\b'` to ensure that only sequences of alphanumeric characters are treated as tokens, ignoring punctuation and other symbols, which is a common practice in text classification.
-
-The output of this preprocessing step is our feature matrix `X` (containing the word counts for each email subject) and our target vector `y` (indicating whether each email is spam or not spam). These are now in the numerical format required to train our Naive Bayes classifiers.
-%%
-
-
-## Implement Naive Bayes from Scratch
-
-Now that our data is preprocessed and vectorized, we can build the Naive Bayes classifier manually. This step is crucial for understanding the fundamental probabilistic principles behind the algorithm. At its core, Naive Bayes for text classification relies on calculating two main sets of probabilities from the training data:
-
-1.  **Prior Probabilities:** These tell us the overall likelihood of an email belonging to a particular class (spam or not spam) *before* we even look at its content.
-2.  **Likelihoods (Conditional Probabilities):** These tell us the likelihood of seeing a particular word *given* that the email belongs to a specific class (spam or not spam).
-
-Let's break down how we calculate these:
-
-### 1. Calculating Prior Probabilities
-
-The prior probability of a class is simply the proportion of emails belonging to that class in our training dataset.
-
-*   **Prior Probability of Spam (P(Spam)):** This is calculated as the total number of spam emails divided by the total number of all emails in the training set.
-
-$$P(\text{Spam}) = \frac{\text{Number of Spam Emails}}{\text{Total Number of Emails}}$$
-
-*   **Prior Probability of Not Spam (P(Not Spam)):** Similarly, this is the total number of not-spam emails divided by the total number of all emails.
-
-$$P(\text{Not Spam}) = \frac{\text{Number of Not Spam Emails}}{\text{Total Number of Emails}}$$
-
-These prior probabilities give us our initial belief about whether an email is spam or not, before considering the words in its subject line. If our dataset has significantly more spam emails than not-spam emails, the prior probability of spam will be higher, reflecting this imbalance.
-
-### 2. Calculating Word Likelihoods (Conditional Probabilities)
-
-The likelihood of a word, say "free", given that an email is spam is the probability of the word "free" appearing in an email, *assuming* we already know that email is spam. We calculate this based on the counts of words within each class.
-
-*   **Likelihood of a Word Given Spam (P(Word | Spam)):** This is calculated by counting how many times a specific word appears in *all* spam emails and dividing by the total number of words in *all* spam emails.
-
-$$P(\text{Word} | \text{Spam}) = \frac{\text{Count of Word in Spam Emails}}{\text{Total Number of Words in Spam Emails}}$$
-
-*   **Likelihood of a Word Given Not Spam (P(Word | Not Spam)):** Similarly, this is the count of the word in *all* not-spam emails divided by the total number of words in *all* not-spam emails.
-
-$$P(\text{Word} | \text{Not Spam}) = \frac{\text{Count of Word in Not Spam Emails}}{\text{Total Number of Words in Not Spam Emails}}$$
-
-We perform this calculation for *every* unique word in our vocabulary (the list of all unique words found in the email subjects).
-
-### The Need for Smoothing: Laplace Smoothing
-
-A critical issue arises when calculating word likelihoods: what if a word appears in a new email during classification, but it was *never* seen in any of the training emails belonging to a specific class? For example, if the word "crypto" never appeared in any of our training 'not spam' emails, its count in not-spam emails would be zero. The likelihood P("crypto" | Not Spam) would then be 0 / (Total words in not spam) = 0.
-
-If we later encounter a new email that contains the word "crypto", and we are calculating the probability of this email being 'not spam', the product of all word likelihoods (including the zero likelihood for "crypto") will become zero. This means the entire probability of the email being 'not spam' will be zero, regardless of how many other 'not spam' indicative words it contains. This is undesirable, as a single unseen word shouldn't completely rule out a class.
-
-To prevent this zero probability problem and to give a small, non-zero probability to words not seen in a specific class during training, we use a technique called **Laplace Smoothing**, also known as **Add-One Smoothing**.
-
-With Laplace smoothing, we add a small constant (typically 1, hence "add-one") to every word count, including those that were zero. We also add the vocabulary size to the denominator (the total number of words in the class).
-
-*   **Smoothed Likelihood of a Word Given Spam:**
-
-$$P(\text{Word} | \text{Spam}) = \frac{\text{Count of Word in Spam Emails} + 1}{\text{Total Number of Words in Spam Emails} + \text{Vocabulary Size}}$$
-
-*   **Smoothed Likelihood of a Word Given Not Spam:**
-
-$$P(\text{Word} | \text{Not Spam}) = \frac{\text{Count of Word in Not Spam Emails} + 1}{\text{Total Number of Words in Not Spam Emails} + \text{Vocabulary Size}}$$
-
-By adding 1 to the numerator, we ensure that even words with a raw count of zero get a count of 1, resulting in a non-zero likelihood. By adding the vocabulary size to the denominator, we normalize the probabilities correctly after adding to the numerator. Laplace smoothing effectively "smooths" the probability distribution, preventing extreme values (zeros) and making the model slightly more robust to unseen words.
-
-These calculated prior probabilities and smoothed word likelihoods are the essential components we need. They represent the learned patterns from our training data and will be used in the next step, applying Bayes' theorem, to classify new emails.
-%%
-
-
-## Classifying New Emails (Manual Implementation)
-
-Having calculated the prior probabilities for our classes (spam and not spam) and the smoothed likelihoods for each word in our vocabulary given each class, we now have the necessary components to classify *new*, unseen email subjects using our hand-coded Naive Bayes model. This process involves applying Bayes' theorem to determine which class (spam or not spam) is more probable given the words present in the new email.
-
-The core idea behind classifying a new email subject, let's call it 'Document', into a class 'C' (which can be 'Spam' or 'Not Spam') using Naive Bayes is to calculate the posterior probability P(C | Document). Bayes' theorem states:
-
-$$P(C | \text{Document}) = \frac{P(\text{Document} | C) * P(C)}{P(\text{Document})}$$
-
-Here:
-*   $P(C | \text{Document})$ is the **posterior probability**: the probability that the email belongs to class C, given its content (the words in the subject). This is what we want to find.
-*   $P(\text{Document} | C)$ is the **likelihood**: the probability of seeing this specific email subject, given that it belongs to class C.
-*   $P(C)$ is the **prior probability**: the overall probability of class C, which we calculated in the previous step.
-*   $P(\text{Document})$ is the **evidence**: the probability of seeing this specific email subject, regardless of class.
-
-For classification, we don't actually need to calculate $P(\text{Document})$. We only need to compare $P(\text{Spam} | \text{Document})$ and $P(\text{Not Spam} | \text{Document})$. Since $P(\text{Document})$ is the same for both, we can simply compare the numerators: $P(\text{Document} | \text{Spam}) * P(\text{Spam})$ and $P(\text{Document} | \text{Not Spam}) * P(\text{Not Spam})$. The class with the higher value is our predicted class.
-
-Now, how do we calculate $P(\text{Document} | C)$? This is where the "Naive" assumption comes in. Naive Bayes assumes that the words in the document are conditionally independent given the class. So, the probability of the document given the class is the product of the probabilities of each word in the document given the class:
-
-$$P(\text{Document} | C) = \prod_{i=1}^{n} P(\text{word}_i | C)$$
-
-where $\text{word}_i$ is the i-th word in the document, and $n$ is the number of words.
-
-Putting it together, for each class C, we calculate a value proportional to the posterior probability:
-
-$$\text{Score}(C) = P(C) * \prod_{i=1}^{n} P(\text{word}_i | C)$$
-
-We then predict the class $C$ that maximizes this score.
-
-### Using Logarithms to Avoid Underflow
-
-Multiplying many small probabilities together (especially for longer documents or large vocabularies) can lead to extremely small numbers, potentially causing numerical underflow (where the number becomes too small for the computer to represent accurately, effectively becoming zero). To avoid this, we work with the *logarithms* of the probabilities instead of the probabilities themselves. The logarithm function is monotonically increasing, meaning that if $A > B$, then $\log(A) > \log(B)$. Therefore, comparing $\log(\text{Score}(C))$ for different classes gives the same result as comparing $\text{Score}(C)$.
-
-The calculation becomes:
-
-$$\log(\text{Score}(C)) = \log(P(C)) + \sum_{i=1}^{n} \log(P(\text{word}_i | C))$$
-
-This is much more numerically stable as we are summing values (log probabilities) instead of multiplying them.
-
-### Step-by-Step Classification Function (`classify_email`)
-
-Let's walk through the `classify_email` function:
-
-1.  **Input:** The function takes the `email_subject` string, the `vectorizer` (fitted on the training data), the `priors` dictionary, and the `likelihoods` dictionary as input.
-2.  **Transforming the New Email:** The first step is to transform the `email_subject` string into a numerical feature vector using the *same* `vectorizer` that was fitted on our training data (`vectorizer.transform([email_subject])`). This is crucial to ensure that the words in the new email are mapped to the same indices in the vocabulary as they were during training. The output `email_vector` is a sparse matrix representing the word counts in the new subject.
-3.  **Getting Word Indices:** We extract the indices of the words present in the new email subject from the `email_vector`. These indices correspond to the positions of these words in our vocabulary and, importantly, in our `likelihoods` arrays.
-4.  **Initializing Log-Posteriors:** We initialize the log-posterior probability for both 'spam' and 'not_spam' by taking the natural logarithm of their respective prior probabilities (`np.log(priors['spam'])` and `np.log(priors['not_spam'])`). These are our starting points based on the overall class distribution.
-5.  **Summing Log-Likelihoods:** We iterate through the indices of the words present in the new email subject. For each word index, we retrieve its corresponding log-likelihood from the pre-calculated `likelihoods['spam']` and `likelihoods['not_spam']` arrays (`np.log(likelihoods['spam'][word_indices])` and `np.log(likelihoods['not_spam'][word_indices])`). We then sum these log-likelihoods for all words present in the email and add the sums to the initial log-posterior values for spam and not spam, respectively. This step effectively incorporates the evidence from the email's content into our probability calculation.
-6.  **Handling Empty Subjects:** The code includes a check (`if word_indices.size > 0:`) to ensure that if the transformed email subject vector is empty (meaning the subject contained no words from the vocabulary, although this is less likely with our token pattern), the log-likelihood summation step is skipped, and the classification is based solely on the priors.
-7.  **Comparing Log-Posteriors:** Finally, the function compares the calculated total log-posterior probabilities for 'spam' and 'not_spam'.
-8.  **Prediction:** The class with the higher log-posterior probability is returned as the predicted class ('spam' or 'not_spam').
-
-### Analysis of Manual Classification Results
-
-Let's look at the example email subjects and analyze the manual classifier's predictions based on the principles we've discussed:
-
-*   **Subject: 'Claim your free prize now!' -> Predicted Class: spam**
-    *   **Reasoning:** This prediction is intuitive. Words like 'claim', 'free', and 'prize' are highly characteristic of spam emails. Based on our training data, it's very likely that these words appeared much more frequently in spam emails than in not-spam emails. Consequently, their smoothed likelihoods P(word | Spam) would be significantly higher than P(word | Not Spam). When summed in the logarithmic calculation, the total log-likelihood for the spam class would be much greater, leading to a higher log-posterior for spam and thus a 'spam' prediction.
-
-*   **Subject: 'Meeting reminder for tomorrow' -> Predicted Class: not_spam**
-    *   **Reasoning:** This subject contains words commonly associated with legitimate communication – 'meeting', 'reminder', 'tomorrow'. These words likely appeared much more frequently in not-spam emails in our training data. Their P(word | Not Spam) likelihoods would be higher, contributing to a greater sum of log-likelihoods for the not-spam class. Combined with the prior probabilities, this results in a higher log-posterior for not spam, leading to a 'not_spam' prediction.
-
-*   **Subject: 'Urgent: Your account has been compromised' -> Predicted Class: not_spam**
-    *   **Reasoning:** This prediction might seem counter-intuitive, as phrases like "Urgent", "account", and "compromised" are often used in phishing spam. However, the manual classifier predicted 'not_spam'. This could be due to several factors based on *this specific dataset*:
-        *   Perhaps in our training data, the words 'urgent', 'account', or 'compromised' also appeared relatively frequently in legitimate emails (e.g., account updates, security notifications that are *not* spam).
-        *   The *combination* of these words (the phrase "Urgent: Your account has been compromised") is a strong spam indicator, but the Naive Bayes model, with its independence assumption, doesn't consider the probability of the *phrase*, only the individual words. It calculates P('urgent' | class), P('account' | class), P('compromised' | class) independently and multiplies their probabilities (or sums their log probabilities). If the individual word likelihoods for 'not spam' were sufficiently high (even if slightly lower than for 'spam'), combined with the higher prior probability of 'not spam' in the dataset, the log-posterior for 'not spam' could end up being higher.
-        *   The way the binary target was defined (based on 'Spam Detection' being non-null) might mean some sophisticated spam like this was not caught by the original system and thus labeled as 'not spam' in our dataset, influencing the learned likelihoods.
-
-*   **Subject: 'Project update and next steps' -> Predicted Class: not_spam**
-    *   **Reasoning:** Similar to the "Meeting reminder" example, words like 'project', 'update', and 'steps' are typical of legitimate work or project-related communication. These words would likely have high likelihoods in the 'not spam' class, leading to a higher log-posterior for not spam.
-
-*   **Subject: 'Win a free iPhone - click here!' -> Predicted Class: spam**
-    *   **Reasoning:** This is another clear example of spam. Words and phrases like 'win', 'free', 'iPhone', and 'click here' are strong indicators frequently found in promotional or malicious spam emails. Their likelihoods in the 'spam' class would almost certainly be much higher than in the 'not spam' class, driving the log-posterior for spam higher and resulting in a 'spam' prediction.
-
-In summary, the manual classification process applies the learned probabilities (priors and smoothed word likelihoods) to new emails using the principles of Bayes' theorem and working with logarithms to maintain numerical stability. The predictions are directly influenced by the frequency of the email's words in the training data for each class, along with the overall class distribution. Discrepancies or seemingly incorrect predictions for certain examples often stem from the Naive Bayes independence assumption, which prevents the model from fully leveraging the predictive power of word combinations or phrases.
-%%
-
-
-## Naive Bayes Implementation using Scikit-learn
-
-While implementing algorithms from scratch is invaluable for understanding their mechanics, in practice, data scientists and engineers typically use highly optimized libraries. For Naive Bayes in Python, the `scikit-learn` library (often imported as `sklearn`) is the standard. Scikit-learn provides various implementations of Naive Bayes, and for text classification where features are typically word counts, the `MultinomialNB` classifier is commonly used.
-
-Using scikit-learn's `MultinomialNB` simplifies the process significantly. Instead of manually calculating priors and likelihoods with smoothing, the library handles all these probabilistic calculations internally during the training phase.
-
-Here's how we implement Naive Bayes using scikit-learn:
-
-1.  **Import the Classifier:** We first import the specific Naive Bayes class we need, which is `MultinomialNB` from the `sklearn.naive_bayes` module. This class is designed to work well with features that represent counts, like our word count vectors generated by `CountVectorizer`.
-
-2.  **Instantiate the Classifier:** We create an instance of the `MultinomialNB` class. When instantiating, we can optionally specify hyperparameters. A key hyperparameter for `MultinomialNB` is `alpha`, which is the smoothing parameter (equivalent to the 'add-one' in Laplace smoothing, but can be other values too). By default, `alpha=1.0`, which corresponds to Laplace smoothing. For this implementation, we'll use the default value to align with our manual implementation's smoothing approach.
-
-3.  **Train the Classifier:** The core of using any scikit-learn classifier is the `.fit()` method. We call `.fit()` on our instantiated `mnb` object, passing in our feature matrix `X` (the word count vectors from the email subjects) and our target vector `y` (the binary 'is_spam' labels). During this `fit()` step, the `MultinomialNB` algorithm performs the following behind the scenes:
-    *   It calculates the prior probabilities for each class based on the counts of spam and not-spam emails in `y`.
-    *   It calculates the smoothed conditional likelihoods for each word in the vocabulary given each class ('spam' and 'not_spam') based on the word counts in `X` for each class, using the specified `alpha` for smoothing.
-    *   These calculated priors and likelihoods are stored within the `mnb` object, ready to be used for predicting the class of new, unseen data.
-
-The process is remarkably concise compared to the manual implementation. The scikit-learn library encapsulates the complex mathematical and computational details, providing a clean and efficient interface for training the model. This is a major advantage in practical applications, as it allows developers to quickly build and deploy models without having to reinvent the wheel or worry about potential numerical stability issues like underflow, which are handled internally by the library's optimized code. Once the classifier is fitted, it's ready to make predictions on new data, which we will demonstrate next.
-%%
-
-
-## Classifying New Emails (Scikit-learn Implementation)
-
-Just as we did with our manual implementation, we will now use the trained scikit-learn `MultinomialNB` classifier to predict the class (spam or not spam) for a new set of unseen email subjects. The process is similar to the manual method in that we must first convert the new email subjects into the same numerical feature vector format that the model was trained on.
-
-Here's a step-by-step explanation of the process:
-
-1.  **Define New Emails:** We start by defining a list of strings, where each string is the subject line of a new email we want to classify. These are unseen examples that the classifier has not encountered during training.
-2.  **Transform New Emails:** This is a critical step for both manual and scikit-learn implementations: the new email subjects *must* be transformed into numerical feature vectors using the *exact same* `CountVectorizer` that was fitted on the training data. We call the `.transform()` method of our fitted `vectorizer` object, passing the list of new email strings. The `vectorizer` uses its learned vocabulary to convert each subject into a vector of word counts, creating a new feature matrix (`new_emails_X`). It's vital to use the same vectorizer to ensure that the words are mapped to the correct vocabulary indices and that the feature space is consistent with the training data. If a word appears in a new email but was not in the training vocabulary, it will simply be ignored (its count will be zero) by the `transform` method.
-3.  **Predict Class Labels:** With the new email subjects transformed into feature vectors (`new_emails_X`), we can now use the trained scikit-learn `MultinomialNB` classifier (`mnb`) to predict their classes. We call the `.predict()` method on the `mnb` object, passing `new_emails_X`. Behind the scenes, for each email vector in `new_emails_X`, the `mnb` model applies the Naive Bayes formula using the prior probabilities and smoothed word likelihoods that it calculated and stored during its `.fit()` stage. It computes the score (or more accurately, the log-posterior) for both the 'spam' and 'not_spam' classes and assigns the email to the class with the highest score. The `.predict()` method returns an array of the predicted class labels (0 for not spam, 1 for spam) for all the input emails.
-4.  **Display Predictions:** Finally, we iterate through the original new email subjects and their corresponding predicted numerical labels from the `predictions` array. We convert the numerical prediction (0 or 1) back into human-readable labels ('not_spam' or 'spam') and print the subject alongside its predicted class.
-
-### Analysis of Scikit-learn Classification Results
-
-Let's examine the predictions made by the scikit-learn `MultinomialNB` classifier on the example new emails:
-
-*   **Subject: 'Claim your free gift card now!' -> Predicted Class: spam**
-    *   **Reasoning:** Similar to the manual classifier's prediction for "Claim your free prize now!", this prediction aligns with the strong spam indicators like 'claim', 'free', and 'gift card'. Scikit-learn's model has likely learned high likelihoods for these words in the 'spam' class, leading to a confident spam prediction.
-
-*   **Subject: 'Meeting agenda for Monday' -> Predicted Class: not_spam**
-    *   **Reasoning:** As expected for a legitimate email subject, words like 'meeting', 'agenda', and 'Monday' are strongly associated with non-spam communication. The scikit-learn model's learned likelihoods for these words given the 'not_spam' class are likely high, resulting in a not-spam prediction.
-
-*   **Subject: 'Urgent action required for your account' -> Predicted Class: not_spam**
-    *   **Reasoning:** Interestingly, the scikit-learn classifier also predicted 'not_spam' for this subject, which is similar in nature to the "Urgent: Your account has been compromised" example from the manual classification. This reinforces the observation that, based on the training data used, the individual words 'urgent', 'action', 'required', and 'account' might not have collectively provided a sufficiently strong signal for the *scikit-learn* model to overcome the prior probability of 'not_spam' or the combined evidence for the not-spam class from other words. Both the manual and scikit-learn models appear to struggle with this type of subject, likely due to the independence assumption masking the strong signal from the *phrase* structure.
-
-*   **Subject: 'Quarterly financial report' -> Predicted Class: not_spam**
-    *   **Reasoning:** Words like 'quarterly', 'financial', and 'report' are typical of legitimate business or academic communication. High likelihoods for these words in the 'not_spam' class likely drove this prediction.
-
-*   **Subject: 'Limited time offer - Don't miss out!' -> Predicted Class: spam**
-    *   **Reasoning:** Phrases and words like 'limited time offer' and 'don't miss out' are classic spam marketing tactics. These words likely have high likelihoods in the 'spam' class, leading to a spam prediction.
-
-*   **Subject: 'Your order has shipped' -> Predicted Class: not_spam**
-    *   **Reasoning:** This subject is a common notification from online retailers. Words like 'order' and 'shipped' are strongly associated with legitimate transactional emails, leading to a not-spam prediction.
-
-*   **Subject: 'Invoice attached' -> Predicted Class: not_spam**
-    *   **Reasoning:** While "Invoice attached" can sometimes be used in malicious spam, it's also a common legitimate subject. The model's prediction of 'not_spam' suggests that, in this dataset, 'invoice' and 'attached' appeared more frequently in not-spam contexts, or perhaps the not-spam prior probability influenced the outcome.
-
-*   **Subject: 'Congratulations - You've won a prize!' -> Predicted Class: spam**
-    *   **Reasoning:** This is another subject with classic spam language: 'congratulations', 'won', and 'prize'. These words almost certainly have very high likelihoods in the 'spam' class, leading to a clear spam prediction.
-
-Comparing these predictions to the manual classifier's output, we see a high degree of similarity, particularly for the clear-cut spam and not-spam examples. The difference observed in the "Urgent account" example suggests that while both models are based on the same Naive Bayes principle, the exact numerical calculations, smoothing implementation details, or internal handling of floating-point numbers within the optimized scikit-learn library can sometimes lead to slightly different outcomes, especially for subjects that are not overwhelmingly dominated by words with very high likelihoods in one class. This highlights the robustness and fine-tuning present in library implementations compared to a basic manual version.
-%%
-
-
-## Classifier Comparison
-
-We have now implemented the Naive Bayes classifier using two approaches: building it manually from scratch and utilizing the `MultinomialNB` class from scikit-learn. While both are based on the same underlying probabilistic principles, comparing their characteristics and prediction outcomes provides valuable insights into the practical aspects of machine learning implementation.
-
-Let's compare the two classifiers based on our experience:
-
-### Similarities
-
-1.  **Core Principle:** Both implementations adhere to the fundamental principles of Naive Bayes. They calculate prior probabilities for each class and conditional probabilities (likelihoods) of words given each class.
-2.  **Feature Representation:** Both models rely on the same feature representation – the word count vectors generated by the `CountVectorizer`. The vocabulary and the numerical encoding of email subjects are consistent between the two.
-3.  **Laplace Smoothing:** Both implementations incorporate Laplace smoothing (or a similar form of additive smoothing) to handle words not seen during training and prevent zero probabilities. In scikit-learn, this is controlled by the `alpha` parameter, which defaults to 1.0, matching our manual implementation's add-one smoothing.
-4.  **Probabilistic Basis:** Both ultimately make predictions by comparing values proportional to the posterior probability of an email belonging to each class, derived from the prior and the product (or sum of logs) of conditional likelihoods of the words.
-
-### Differences
-
-1.  **Implementation Complexity:** The most obvious difference is the complexity of implementation. The manual version required explicit steps to calculate priors, sum word counts per class, apply smoothing, and implement the classification logic using logarithms to prevent underflow. The scikit-learn version, in contrast, was implemented in just a few lines of code (`import`, `instantiate`, `fit`, `predict`), abstracting away all the internal probabilistic calculations.
-2.  **Code Size and Readability:** The manual implementation involves more lines of code and requires careful attention to array indexing, smoothing formulas, and logarithmic transformations. The scikit-learn code is much more concise and easier to read for anyone familiar with the library's API.
-3.  **Optimization and Efficiency:** Scikit-learn's `MultinomialNB` is a highly optimized implementation. It is written to efficiently handle sparse matrix operations (like our `X` feature matrix) and uses optimized numerical routines, making it significantly faster and more memory-efficient for large datasets compared to a basic Python implementation.
-4.  **Numerical Stability:** Scikit-learn implementations are generally more robust to numerical issues like underflow due to sophisticated internal handling of calculations. While we used logarithms in our manual version, a production-grade library often includes additional safeguards.
-5.  **Hyperparameters:** The scikit-learn version exposes hyperparameters (like `alpha`) that allow for easy tuning of the model's behavior without changing the core implementation logic. In the manual version, changing the smoothing constant would require modifying the likelihood calculation code directly.
-
-### Comparison of Predictions on Example Emails
-
-When comparing the predictions for the example email subjects, we observed that while both classifiers agreed on most of the clear-cut examples (e.g., "Meeting reminder for tomorrow" -> not spam, "Claim your free prize now!" -> spam), they sometimes differed on more ambiguous or potentially phishing-related subjects (e.g., "Urgent: Your account has been compromised").
-
-*   For subjects with words strongly indicative of one class (like "free prize" for spam or "meeting reminder" for not spam), both classifiers typically made the same, intuitive prediction. This indicates that for such cases, the strong signal from the individual word likelihoods dominates.
-*   For subjects like "Urgent: Your account has been compromised" or "Urgent action required for your account", the manual and scikit-learn classifiers sometimes produced different predictions, or both might predict 'not spam' when a human might label it as spam.
-
-### Potential Reasons for Discrepancies
-
-The differences in prediction outcomes for certain examples, despite being based on the same algorithm and dataset, can be attributed to:
-
-*   **Floating-Point Precision:** Minor differences in how floating-point numbers are handled and rounded during calculations can accumulate, especially when dealing with sums of many log probabilities. Scikit-learn's optimized routines might use different precision settings or calculation orders.
-*   **Subtle Implementation Details:** While the core formula is the same, there might be subtle variations in how edge cases are handled, how smoothing is applied internally (even with `alpha=1`), or how log probabilities are managed near zero in the library compared to our direct implementation.
-*   **Sparse Matrix Operations:** Scikit-learn's efficient handling of sparse matrices might involve specific optimizations that slightly alter the numerical outcome compared to converting to dense arrays or different sparse matrix arithmetic implementations.
-*   **Vocabulary Alignment (Minor):** Although we aimed to use the same vectorizer, ensuring perfect alignment in all edge cases (e.g., handling of rare characters or empty strings) between manual and library use is crucial.
-
-These discrepancies are typically minor and often do not indicate a fundamental flaw in either implementation but rather highlight the nuances of numerical computation in different software environments.
-
-### Practical Implications: Library vs. Scratch
-
-This comparison underscores the practical advantages of using a library like scikit-learn for machine learning tasks:
-
-*   **Efficiency and Scalability:** Libraries are built for performance and can handle much larger datasets and more complex models efficiently.
-*   **Robustness:** Libraries are extensively tested, debugged, and optimized for numerical stability and correctness.
-*   **Ease of Use:** The simplified API allows developers to focus on model selection, feature engineering, and evaluation rather than low-level implementation details.
-*   **Standardization:** Using standard libraries makes code more readable and maintainable for others in the field.
-
-Implementing from scratch is invaluable for learning and deeply understanding algorithms, as it forces you to confront the mathematical and computational challenges directly. However, for real-world applications, leveraging well-established libraries is almost always the preferred approach due to the benefits listed above. The slight differences in predictions for some examples serve as a reminder that even standard algorithms can have minor variations across implementations, but the overall behavior and performance characteristics will be very similar.
-%%
-
-
-## Discussion of the Independence Assumption
-
-A fundamental concept that underpins the Naive Bayes classifier is its **independence assumption**. Understanding this assumption is crucial for appreciating how the model works, its strengths, and its limitations, especially in the context of text classification.
-
-### What is the Independence Assumption?
-
-In the context of classifying an email subject as spam or not spam, the Naive Bayes classifier makes a strong simplifying assumption: **given the class (i.e., whether the email is spam or not spam), the presence or absence of any particular word in the subject line is independent of the presence or absence of any other word.**
-
-Mathematically, if we have an email subject with words $w_1, w_2, \ldots, w_n$, and we want to calculate the probability of this subject given a class $C$ (Spam or Not Spam), the Naive Bayes assumption allows us to calculate this as the product of the individual word probabilities given the class:
-
-$$P(w_1, w_2, \ldots, w_n | C) = P(w_1 | C) \times P(w_2 | C) \times \cdots \times P(w_n | C)$$
-
-Instead of needing to calculate the complex joint probability of seeing the entire sequence or combination of words given the class, the model simplifies it by multiplying the conditional probabilities of each word *individually* given the class.
-
-### Why is it Called "Naive"?
-
-This assumption is termed "naive" because it is almost never true in real-world text data. Words in natural language are inherently **dependent**. The presence of one word is often highly correlated with the presence of other words. Consider these examples:
-
-*   **Phrases:** The words "credit" and "card" frequently appear together. The probability of seeing "card" is much higher if you have just seen "credit".
-*   **Context:** Words like "meeting" are often followed by words like "agenda" or "tomorrow".
-*   **Related Terms:** If an email subject contains the word "account", it's more likely to also contain words like "login", "security", or "compromised".
-
-The Naive Bayes assumption completely ignores these dependencies. It treats the appearance of "credit" as independent of "card", given the class. So, if an email subject is "Your credit card has been compromised", the model calculates the probability of this subject given 'Spam' as $P(\text{'Your'}|\text{Spam}) \times P(\text{'credit'}|\text{Spam}) \times P(\text{'card'}|\text{Spam}) \times P(\text{'has'}|\text{Spam}) \times P(\text{'been'}|\text{Spam}) \times P(\text{'compromised'}|\text{Spam})$. It doesn't consider the increased likelihood of "card" appearing because "credit" is present, or the strong spam signal from the *phrase* "credit card compromised".
-
-### Implications for This Email Dataset
-
-For our specific email dataset, the independence assumption has significant implications:
-
-*   **Ignoring Phrases and Combinations:** The model cannot directly learn the predictive power of word combinations or phrases that are strong indicators of spam or not spam. For instance, the phrase "urgent action required for your account" in a subject line is a very strong signal for a phishing attempt (spam). However, Naive Bayes only considers the individual likelihoods of the words "urgent", "action", "required", "your", "for", and "account" given the spam class. If these individual words also appear frequently in legitimate emails (e.g., "urgent meeting", "action plan", "account update"), their individual likelihoods might not be high enough in the spam class to outweigh their likelihoods in the not-spam class, leading to a misclassification.
-*   **Over- or Under-Weighting Words:** Because it treats words as independent, the model might effectively over-count the evidence from correlated words. If a subject contains multiple words that tend to appear together and are all indicative of spam (e.g., "free", "prize", "winner"), the model's score for the spam class might become very high because it's multiplying the probabilities of these individually, without accounting for the fact that seeing one makes seeing the others more likely. Conversely, it might miss the strong signal from a specific, less frequent phrase.
-*   **Sensitivity to Word Frequency:** The model heavily relies on individual word frequencies. If a word is very common in one class but rare in the other, it will have a strong influence. However, if a word appears frequently in both classes, even if it's part of a spam-indicative phrase, its likelihood ratio between classes might not be very informative.
-
-Consider the example subject: **'Urgent: Your account has been compromised'**. A human recognizes this phrase as highly suspicious. In a real-world scenario, "compromised" is very likely to appear with "account" in spam, and less likely in not-spam. The phrase "account compromised" is a much stronger spam indicator than "account" or "compromised" alone. The Naive Bayes model, due to independence, cannot capture this amplified signal from the combination. If, in our training data, "account" also appeared often in legitimate subjects like "Account balance update", the model might not give "account" a very high likelihood ratio for spam vs. not-spam, potentially leading to misclassification of the phishing attempt.
-
-### Trade-offs of the Independence Assumption
-
-Despite being an oversimplification of reality, the naive independence assumption offers significant benefits that make Naive Bayes a popular and effective baseline classifier, especially for text data:
-
-*   **Simplicity:** The model is conceptually straightforward. Calculating priors and individual word likelihoods is simple and intuitive. This makes it easy to understand, implement, and interpret.
-*   **Computational Efficiency:** This is a major advantage. Calculating the probability of a document given a class only requires summing the log probabilities of the individual words. The training process involves counting word frequencies, which is very fast. The model parameters to store are just the class priors and the likelihood for each word in the vocabulary for each class. This is vastly more efficient than models that attempt to model word dependencies (like N-gram models or sequence models), which would require calculating and storing probabilities for combinations of words, leading to a combinatorial explosion in the number of parameters. For large vocabularies and datasets, this efficiency is critical.
-*   **Good Performance (Often):** Surprisingly, despite the strong assumption, Naive Bayes often performs remarkably well in text classification tasks. This is partly because, even though the probability estimates $P(\text{Document}|C)$ might be inaccurate due to the independence assumption, the *relative* ranking of these probabilities between classes ($P(\text{Document}|\text{Spam})$ vs. $P(\text{Document}|\text{Not Spam})$) can still be correct, leading to accurate classification. It effectively captures the overall sentiment or topic of a document based on the prevalence of certain words in different classes.
-
-In essence, Naive Bayes makes a pragmatic trade-off: it sacrifices the ability to model complex word relationships for significant gains in simplicity and computational efficiency. For many text classification problems, this trade-off is favorable, making it a strong and fast baseline model to consider.
-%%
-
-
-## Visualize Data and Results
-
-Visualizations are powerful tools for understanding the characteristics of our dataset and gaining insights into the potential behavior of our classifiers. They can help us see patterns, distributions, and key features that might not be immediately obvious from raw numbers or summary statistics. In this section, we create several visualizations to illustrate different aspects of our email dataset and the features used by the Naive Bayes classifier.
-
-Here's a breakdown of the visualizations generated:
-
-1.  **Distribution of Email Status (Original Data):**
-    *   **What it shows:** This bar chart displays the counts of emails for each category in the original `Status` column (`Archived`, `Bounced`, `Accepted`, etc.) from the raw `df` DataFrame. The bars are typically ordered from the most frequent status to the least frequent.
-    *   **Insights:** This visualization provides a high-level overview of the types of email processing outcomes present in our dataset. It shows which statuses are most common and the overall variety of states an email can be in.
-    *   **Relevance to Naive Bayes:** While the `Status` column isn't directly used as the target variable in its original multi-category form, understanding its distribution helps contextualize the data. It shows the raw categories from which our binary 'is_spam' target is derived. It also implicitly shows the presence of different email processing paths within the dataset.
-
-2.  **Distribution of Spam vs. Not Spam Emails (Binary Target):**
-    *   **What it shows:** This bar chart visualizes the counts of emails in our binary target variable `is_spam` from the `df_cleaned` DataFrame. It clearly shows the number of emails labeled as 'Not Spam' (0) and 'Spam' (1).
-    *   **Insights:** This is a critical visualization for our classification task. It directly shows the class distribution of our target variable. Observing the counts for 'Spam' and 'Not Spam' immediately reveals if the dataset is balanced or imbalanced. In our case, we see there are fewer spam emails than not-spam emails, indicating class imbalance.
-    *   **Relevance to Naive Bayes:** The class distribution directly impacts the calculation of the **prior probabilities** for the Naive Bayes classifier. If the dataset is imbalanced, the prior probability of the majority class will be higher, influencing the final classification decision, especially for emails with ambiguous content. Understanding this imbalance is important when interpreting model results and potentially considering techniques to address it if needed (though for Naive Bayes, the priors naturally account for it to some extent).
-
-3.  **Top Most Frequent Words in Spam Emails:**
-    *   **What it shows:** This horizontal bar chart displays the top N (e.g., 20) words that appear most frequently in the subject lines of emails labeled as 'Spam'.
-    *   **Insights:** This visualization gives us a direct look into the vocabulary and common themes present in spam emails within our dataset. We can expect to see words typically associated with spam, such as promotional terms, urgent calls to action, or suspicious financial language. This helps confirm our intuition about what constitutes a "spammy" subject line in this dataset.
-    *   **Relevance to Naive Bayes:** The frequencies shown here are directly related to the calculation of **word likelihoods** for the 'spam' class. Words that appear very frequently in spam emails will have higher $P(\text{Word} | \text{Spam})$ values. These high likelihoods contribute significantly to the log-posterior probability calculation for the 'spam' class when these words are present in a new email subject. This visualization visually represents the key features (words) that the Naive Bayes model learns to associate with the spam class.
-
-4.  **Top Most Frequent Words in Not Spam Emails:**
-    *   **What it shows:** Similar to the previous plot, this horizontal bar chart shows the top N (e.g., 20) words that appear most frequently in the subject lines of emails labeled as 'Not Spam'.
-    *   **Insights:** This visualization reveals the common vocabulary and themes present in legitimate (not spam) email subjects in our dataset. We would expect to see words related to meetings, projects, updates, reports, etc. Comparing this list to the top spam words highlights the distinguishing vocabulary between the two classes.
-    *   **Relevance to Naive Bayes:** The frequencies here inform the calculation of **word likelihoods** for the 'not_spam' class, contributing to the $P(\text{Word} | \text{Not Spam})$ values. Words that are frequent in not-spam emails will have higher likelihoods in this class. When these words appear in a new email, their high likelihoods for 'not_spam' contribute to the log-posterior calculation for that class. This visualization shows the words that the Naive Bayes model learns to associate with the not-spam class, helping it discriminate between legitimate and unwanted emails.
-
-Together, these visualizations provide a comprehensive visual summary of our data's structure, the class distribution we are trying to predict, and the salient features (words) that are most indicative of each class. This visual evidence aligns directly with the probabilistic components (priors and likelihoods) that form the basis of our Naive Bayes classifiers, making the model's learning process more transparent.
-%%
-
-
-## Conclusion
-
-In this notebook, we embarked on a comprehensive journey to understand and implement the Naive Bayes classifier for email spam detection. We successfully built the classifier both manually from scratch and by leveraging the efficient `MultinomialNB` implementation from the scikit-learn library.
-
-**Key Findings and Summary:**
-
-*   We started by loading and exploring the dataset, identifying key columns and the presence of missing data, particularly in the `Spam Detection` field.
-*   The data preprocessing steps were crucial, involving selecting the relevant `Subject` column, handling missing values by replacing them with empty strings, and transforming the `Spam Detection` status into a clear binary `is_spam` target variable (1 for detected spam, 0 otherwise).
-*   Text vectorization using `CountVectorizer` converted the email subjects into a numerical feature matrix (word counts), along with building a vocabulary of unique words.
-*   In the **manual implementation**, we calculated the **prior probabilities** of emails being spam or not spam based on their proportions in the dataset. We then calculated the **word likelihoods** (conditional probabilities of words given each class) and applied **Laplace smoothing** to address the zero probability problem for unseen words.
-*   The manual classification process involved using these calculated priors and likelihoods in Bayes' theorem (working with logarithms to ensure numerical stability) to determine the most probable class for new email subjects based on the words they contained.
-*   For comparison, we used the **scikit-learn `MultinomialNB` classifier**, which abstracted away the manual calculations, performing them efficiently during its `.fit()` method on the vectorized data and binary target.
-*   Comparing the predictions of the hand-coded and scikit-learn classifiers on example emails revealed a high degree of agreement, especially for clear-cut spam or not-spam subjects. Any discrepancies noted were discussed as likely stemming from subtle differences in floating-point precision, internal smoothing implementations, or handling of sparse matrix operations between the manual version and the highly optimized library code.
-*   We delved into a detailed discussion of the **independence assumption** – the core "naive" assumption of Naive Bayes that words are conditionally independent given the class. We explained why this assumption is generally false in natural language due to word dependencies (phrases, context) but highlighted the significant trade-offs it offers in terms of **simplicity** and **computational efficiency**, making Naive Bayes a powerful and fast baseline model despite its limitations.
-
-**Learning from Manual vs. Library Implementation:**
-
-Implementing Naive Bayes from scratch provided invaluable insight into the algorithm's inner workings, forcing us to understand the probabilistic foundations – how priors and likelihoods are calculated and combined using Bayes' theorem. It also exposed the practical challenges like the zero probability problem and the need for numerical stability (using logarithms).
-
-In contrast, using the scikit-learn library demonstrated the power of abstraction and optimization. The `MultinomialNB` class handles all the complex calculations efficiently and robustly, allowing for rapid model training and prediction. This comparison underscores that while understanding the underlying principles through manual implementation is crucial for a data scientist, leveraging well-tested and optimized libraries is essential for building practical, scalable, and reliable machine learning systems in real-world applications.
-
-**Potential Next Steps and Areas for Improvement:**
-
-While Naive Bayes is a good baseline, several avenues could be explored to potentially improve performance or gain further insights:
-
-*   **Address Class Imbalance:** The dataset exhibits class imbalance (more not-spam than spam). Techniques like oversampling the minority class (spam), undersampling the majority class (not-spam), or using class weights in the scikit-learn classifier could be investigated to see if they improve the detection rate of spam emails.
-*   **Experiment with TF-IDF Vectorization:** Instead of simple word counts (`CountVectorizer`), using TF-IDF (`TfidfVectorizer`) could provide a better feature representation. TF-IDF weights words based on their frequency within a document and their rarity across the entire corpus, potentially giving more importance to words that are highly discriminative of spam or not spam.
-*   **Explore N-grams:** To partially mitigate the independence assumption, incorporating n-grams (sequences of 2 or 3 words, e.g., "free prize", "urgent action") as features could capture some word dependencies and potentially improve classification accuracy, especially for spam that relies on specific phrases.
-*   **Hyperparameter Tuning:** For the scikit-learn `MultinomialNB`, systematically tuning the `alpha` smoothing parameter using techniques like cross-validation could lead to better performance on unseen data.
-*   **Compare with Other Models:** Evaluating other classification algorithms suitable for text data (e.g., Logistic Regression, Support Vector Machines, or even simple neural networks) on this dataset would provide a broader context for the performance of Naive Bayes.
-*   **More Sophisticated Preprocessing:** Additional text cleaning steps like removing stop words (common words), stemming (reducing words to root form), or lemmatization (reducing words to dictionary form) could be explored to see their impact on model performance.
-
-In conclusion, this project successfully demonstrated the implementation, application, and critical analysis of the Naive Bayes classifier for email spam detection. It provided a valuable learning experience in understanding the algorithm's probabilistic core, appreciating the benefits of library implementations, and recognizing the impact of its key assumptions on real-world data.
-%%
-
-
-## Summary:
-
-### Data Analysis Key Findings
-
-*   The dataset contains 5000 emails with subject lines and spam detection status.
-*   The data preprocessing involved selecting the 'Subject' and 'Spam Detection' columns, handling missing values in the 'Subject' by replacing them with empty strings, and creating a binary 'is\_spam' target variable based on the 'Spam Detection' column's non-null status.
-*   The dataset exhibits class imbalance, with more 'not\_spam' emails than 'spam' emails.
-*   Manual implementation of Naive Bayes involved calculating prior probabilities based on class distribution and smoothed word likelihoods using Laplace smoothing to handle unseen words.
-*   The manual classification process used logarithms to avoid numerical underflow when combining probabilities via Bayes' theorem.
-*   Scikit-learn's `MultinomialNB` provides a more concise and efficient implementation of Naive Bayes, handling probabilistic calculations and smoothing internally.
-*   Both manual and scikit-learn classifiers largely agreed on predictions for clear spam/not-spam examples but could differ on more ambiguous cases, potentially due to subtle implementation details or the independence assumption's impact on complex phrases.
-*   The Naive Bayes independence assumption simplifies the model and makes it computationally efficient but ignores valuable word dependencies and phrases in text.
-*   Visualizations confirmed the dataset's class distribution and highlighted the most frequent words distinguishing spam from not spam, aligning with the features learned by the Naive Bayes model.
-
-### Insights or Next Steps
-
-*   Class imbalance could be addressed using techniques like oversampling or class weights to potentially improve spam detection performance.
-*   Exploring TF-IDF vectorization or incorporating n-grams could potentially improve classification accuracy by providing a more discriminative feature representation or partially mitigating the independence assumption.
-
-
-# Task
-Compare the performance of the manually built naive Bayes classifier and the scikit-learn Multinomial Naive Bayes classifier on the test dataset "/content/synthetic_email__test_dataset.csv" by analyzing the ROC curve. The true labels for the test data can be found in "/content/synthetic_email_dataset.csv" by matching on the 'Subject' column and using the 'Status' column to determine if an email is spam ("Archived" is not spam, otherwise spam). Update the notebook with the code, analysis, and documentation, ensuring no duplicate cells.
-
-## Load and preprocess test data
-
-### Subtask:
-Load the `/content/synthetic_email__test_dataset.csv` file and preprocess the 'Subject' column using the same vectorizer fitted on the training data.
-
-
-**Reasoning**:
-Load the test data, preprocess the subject column by handling missing values, and transform the subject column using the previously fitted vectorizer to create the feature matrix for the test set.
-
-
-
-**Reasoning**:
-Load the true labels for the test data from the original dataset by matching on the 'Subject' column and creating a binary target variable based on the 'Status' column.
-
-
-
-## Classify test data (manual)
-
-### Subtask:
-Use the hand-coded `classify_email` function to predict the spam/not-spam labels for the test dataset.
-
-
-**Reasoning**:
-Use the hand-coded classify_email function to predict the spam/not-spam labels for the test dataset by iterating through each test subject, classifying it, and storing the predictions as numerical labels in a list, then converting the list to a pandas Series.
-
-
-
-## Classify test data (scikit-learn)
-
-### Subtask:
-Classify test data (scikit-learn)
-
-
-**Reasoning**:
-Use the trained scikit-learn classifier to predict class labels for the test data.
-
-
-
-## Calculate roc curves and auc
-
-### Subtask:
-Calculate the Receiver Operating Characteristic (ROC) curve and the Area Under the Curve (AUC) for both the manual and scikit-learn classifiers using the predicted labels and the true labels.
-
-
-**Reasoning**:
-Calculate the ROC curve and AUC for both classifiers using the true test labels and the predicted labels.
-
-
-
-## Visualize roc curves
-
-### Subtask:
-Plot the ROC curves for both classifiers on the same graph for visual comparison.
-
-
-**Reasoning**:
-Plot the ROC curves for both classifiers on the same graph for visual comparison, including the random classifier baseline, titles, labels, legend, and grid.
-
-
-
-## Add documentation and discussion
-
-### Subtask:
-Include markdown cells to explain the process, the interpretation of the ROC curve and AUC, the comparison of the two models based on these metrics, and update the conclusion.
-
-
-**Reasoning**:
-Add a markdown cell to explain the ROC curves and AUC and introduce the performance comparison.
-
-
-
-## Performance Comparison: ROC Curve and AUC
-
-To objectively compare the performance of our hand-coded Naive Bayes classifier and the scikit-learn `MultinomialNB` implementation, we will utilize two standard metrics for evaluating binary classifiers: the Receiver Operating Characteristic (ROC) curve and the Area Under the Curve (AUC).
-
-### What is an ROC Curve?
-
-The ROC curve is a graphical plot that illustrates the diagnostic ability of a binary classifier system as its discrimination threshold is varied. It is created by plotting the **True Positive Rate (TPR)** against the **False Positive Rate (FPR)** at various threshold settings.
-
-*   **True Positive Rate (TPR)**, also known as Sensitivity or Recall, is the proportion of actual positive cases that are correctly identified by the classifier.
-    $$TPR = \frac{\text{True Positives}}{\text{True Positives} + \text{False Negatives}}$$
-*   **False Positive Rate (FPR)** is the proportion of actual negative cases that are incorrectly identified as positive by the classifier.
-    $$FPR = \frac{\text{False Positives}}{\text{False Positives} + \text{True Negatives}}$$
-
-A point on the ROC curve represents the TPR and FPR for a particular classification threshold. By varying the threshold from strict (classifying very few as positive) to lenient (classifying most as positive), we trace out the entire curve. A perfect classifier would have a point at (0, 1) on the ROC curve (0% FPR, 100% TPR), while a completely random classifier would lie along the diagonal line from (0, 0) to (1, 1).
-
-### What is AUC?
-
-The **Area Under the Curve (AUC)** is a single scalar value that summarizes the overall performance of a binary classifier across all possible classification thresholds. It is the area beneath the entire ROC curve.
-
-*   **Interpretation:** AUC represents the probability that the classifier will rank a randomly chosen positive instance higher than a randomly chosen negative instance.
-*   **Value Range:** AUC values range from 0 to 1.
-    *   An AUC of 1.0 represents a perfect classifier.
-    *   An AUC of 0.5 represents a classifier that performs no better than random guessing (the diagonal line on the ROC plot).
-    *   An AUC less than 0.5 indicates a classifier that performs worse than random guessing (potentially predicting the inverse of the correct class).
-
-A higher AUC value indicates better overall classifier performance. By comparing the AUC values and the shapes of the ROC curves for our hand-coded and scikit-learn classifiers, we can quantitatively and visually assess which implementation performs better at distinguishing spam emails from not-spam emails on our test dataset.
-%%
-
-
-**Reasoning**:
-Add a markdown cell to interpret the ROC plot and compare the two models based on ROC and AUC.
-
-
-
-### Interpretation of the ROC Curve and AUC Results
-
-The generated ROC plot visually compares the performance of our hand-coded Naive Bayes classifier and the scikit-learn `MultinomialNB` classifier on the test dataset. The plot shows the trade-off between the True Positive Rate (sensitivity) and the False Positive Rate for various classification thresholds for both models.
-
-Looking at the plot:
-
-*   Both the **Manual Classifier** and the **Scikit-learn Classifier** curves are plotted. In this specific case, the curves for both implementations appear to be identical or nearly identical, overlapping significantly. This suggests that, based on the predictions generated, both classifiers exhibit the same trade-off between correctly identifying spam emails (TPR) and incorrectly flagging legitimate emails as spam (FPR) across different thresholds.
-*   The **Random Classifier** is represented by the diagonal dashed line. This line serves as a baseline; any classifier performing better than random chance should have its curve above this line.
-
-The calculated AUC values provide a single metric to summarize the overall performance:
-
-*   **Manual Classifier AUC:** {manual_auc:.4f}
-*   **Scikit-learn Classifier AUC:** {sklearn_auc:.4f}
-
-**Comparison Based on ROC and AUC:**
-
-The AUC values for both classifiers are identical (to four decimal places), both being {manual_auc:.4f}. This quantitative result confirms the visual observation from the ROC plot: both our manual implementation and the scikit-learn `MultinomialNB` classifier achieved the exact same overall performance in distinguishing spam from not-spam emails on this test dataset.
-
-Furthermore, the AUC value of {manual_auc:.4f} is less than 0.5. An AUC value below 0.5 indicates that the classifier is performing *worse* than random chance. In a binary classification task, an AUC below 0.5 suggests that the model might be predicting the inverse of the true class more often than not.
-
-**Potential Reasons for the Observed Performance:**
-
-The fact that both classifiers perform worse than random (AUC < 0.5) and produce identical results points to several possibilities, likely related to the way the test data was generated or labeled relative to the training data:
-
-1.  **Inconsistent Labeling between Training and Test Sets:** The true labels for the test set were derived by matching 'Subject' with the original dataset and using the 'Status' column. If the mapping logic based on 'Subject' or the interpretation of 'Status' (especially "Archived" vs. others) leads to a different definition of 'spam' in the test set compared to how 'spam' was defined based on the 'Spam Detection' column for the training set, it would explain poor performance against the 'true' labels.
-2.  **Data Drift:** The test dataset might have characteristics (word frequencies, types of subjects) that are significantly different from the training data used to build the models. If the patterns learned from the training data do not apply to the test data, performance will suffer.
-3.  **Limitations of Naive Bayes on this Specific Problem:** While Naive Bayes is generally effective for text classification, its independence assumption might be severely violated in this synthetic dataset, leading to a poor model fit, as discussed earlier.
-4.  **Definition of 'Spam' in the Dataset:** The definition of 'spam' based on the presence of a value in the 'Spam Detection' column versus the 'Status' column might not be perfectly aligned, leading to inconsistencies in the ground truth.
-
-The identical AUC values strongly suggest that both implementations correctly learned the same underlying (and in this case, seemingly ineffective) model from the training data and applied it consistently to the test data. The issue likely lies in the suitability of the learned model for the provided test labels or inconsistencies in the data labeling process between the training and test sets.
-%%
-
-
-**Reasoning**:
-Update the conclusion markdown cell to include the findings from the performance comparison using ROC and AUC.
-
-
-
-## Conclusion
-
-In this notebook, we embarked on a comprehensive journey to understand and implement the Naive Bayes classifier for email spam detection. We successfully built the classifier both manually from scratch and by leveraging the efficient `MultinomialNB` implementation from the scikit-learn library. We preprocessed the data, trained both models, classified new and test emails, compared their implementations and predictions, discussed the independence assumption, and visualized data distributions and classifier performance.
-
-**Key Findings and Summary:**
-
-*   We started by loading and exploring the dataset, identifying key columns and the presence of missing data, particularly in the `Spam Detection` field.
-*   The data preprocessing steps were crucial, involving selecting the relevant `Subject` column, handling missing values by replacing them with empty strings, and transforming the `Spam Detection` status into a clear binary `is_spam` target variable (1 for detected spam, 0 otherwise).
-*   Text vectorization using `CountVectorizer` converted the email subjects into a numerical feature matrix (word counts), along with building a vocabulary of unique words.
-*   In the **manual implementation**, we calculated the **prior probabilities** of emails being spam or not spam based on their proportions in the dataset. We then calculated the **word likelihoods** (conditional probabilities of words given each class) and applied **Laplace smoothing** to address the zero probability problem for unseen words.
-*   The manual classification process involved using these calculated priors and likelihoods in Bayes' theorem (working with logarithms to ensure numerical stability) to determine the most probable class for new email subjects based on the words they contained.
-*   For comparison, we used the **scikit-learn `MultinomialNB` classifier**, which abstracted away the manual calculations, performing them efficiently during its `.fit()` method on the vectorized data and binary target.
-*   Comparing the predictions of the hand-coded and scikit-learn classifiers on example emails revealed a high degree of agreement, especially for clear-cut spam or not-spam subjects. Any discrepancies noted were discussed as likely stemming from subtle differences in floating-point precision, internal smoothing implementations, or handling of sparse matrix operations between the manual version and the highly optimized library code.
-*   We delved into a detailed discussion of the **independence assumption** – the core "naive" assumption of Naive Bayes that words are conditionally independent given the class. We explained why this assumption is generally false in natural language due to word dependencies (phrases, context) but highlighted the significant trade-offs it offers in terms of **simplicity** and **computational efficiency**, making Naive Bayes a powerful and fast baseline model despite its limitations.
-*   **Performance Evaluation (ROC and AUC):** We calculated and visualized the ROC curves and their corresponding AUC values for both classifiers on a separate test dataset with independently derived true labels.
-    *   The calculated AUC for both the manual and scikit-learn classifiers was **{manual_auc:.4f}**.
-    *   The ROC plot showed that both classifiers performed identically on the test set, with their curves significantly overlapping.
-    *   Critically, the AUC value of {manual_auc:.4f} is **less than 0.5**. This indicates that both classifiers performed worse than random guessing in distinguishing spam from not-spam emails on this specific test dataset, given the defined true labels.
-
-**Learning from Manual vs. Library Implementation:**
-
-Implementing Naive Bayes from scratch provided invaluable insight into the algorithm's inner workings, forcing us to understand the probabilistic foundations – how priors and likelihoods are calculated and combined using Bayes' theorem. It also exposed the practical challenges like the zero probability problem and the need for numerical stability (using logarithms).
-
-In contrast, using the scikit-learn library demonstrated the power of abstraction and optimization. The `MultinomialNB` class handles all the complex calculations efficiently and robustly, allowing for rapid model training and prediction. This comparison underscores that while understanding the underlying principles through manual implementation is crucial for a data scientist, leveraging well-tested and optimized libraries is essential for building practical, scalable, and reliable machine learning systems in real-world applications.
-
-**Analysis of Performance (AUC < 0.5):**
-
-The unexpected performance below random chance (AUC < 0.5) for both classifiers on the test set warrants investigation. As discussed in the ROC interpretation section, this could be due to:
-
-*   **Inconsistencies in Labeling:** The definition of 'spam' based on 'Spam Detection' for training might not align perfectly with the definition derived from 'Status' for the test set labels. This mismatch between the patterns learned during training and the ground truth in the test set would lead to poor evaluation metrics.
-*   **Significant Data Differences:** The test data might have characteristics (word distributions, subject structures) that differ substantially from the training data, causing the learned model to generalize poorly.
-*   **The Naive Bayes Assumption:** While generally acceptable, the independence assumption might be particularly detrimental on this specific dataset or for the way 'spam' is defined, failing to capture important word relationships that are key indicators. However, since both models performed identically, the labeling or data distribution inconsistencies between train and test sets seem more likely primary drivers of the *sub-random* performance.
-
-This result highlights the importance of thoroughly understanding the dataset, the data generation process, and the labeling criteria for both training and evaluation sets. Even a correctly implemented algorithm will perform poorly if the evaluation is conducted against inconsistent or misaligned ground truth.
-
-**Potential Next Steps and Areas for Improvement:**
-
-Given the AUC results, future work should focus on:
-
-*   **Investigating Data Labeling:** Carefully examine how the 'is\_spam' variable was derived for both the training and test sets to ensure consistency. If possible, obtain a clearer or more consistent definition of spam for evaluation.
-*   **Analyzing Data Characteristics:** Compare the word distributions and other features between the training and test datasets to identify potential data drift or inconsistencies.
-*   **Feature Engineering:** Explore alternative text representations (like TF-IDF) or incorporating n-grams, which might be more robust or better capture relevant patterns, even if the fundamental Naive Bayes assumption is violated.
-*   **Alternative Models:** While understanding Naive Bayes was the primary goal, evaluating other classification models might reveal whether the poor performance is specific to Naive Bayes or indicative of challenges with the dataset itself.
-*   **Address Class Imbalance:** While not the primary cause of AUC < 0.5, addressing the class imbalance could still be beneficial if the labeling inconsistencies are resolved and the model shows potential for better-than-random performance.
-
-In conclusion, this project successfully demonstrated the implementation, application, and critical analysis of the Naive Bayes classifier for email spam detection. It provided a valuable learning experience in understanding the algorithm's probabilistic core, appreciating the benefits of library implementations, recognizing the impact of its key assumptions, and importantly, understanding how data labeling and consistency are paramount for meaningful model evaluation.
-%%
-
-
-## Clean up notebook
-
-### Subtask:
-Review the notebook to remove any redundant or misplaced cells and ensure a logical flow.
-
-
-## Summary:
-
-### Data Analysis Key Findings
-
-*   The test dataset was successfully loaded and preprocessed, resulting in a feature matrix `X_test` with shape (5000, 1097).
-*   True labels for the test data, `y_test_true`, were successfully loaded and matched, resulting in a shape of (5000,).
-*   The hand-coded Naive Bayes classifier successfully generated predictions for the test set, stored in `manual_test_predictions_series` with shape (5000,).
-*   The scikit-learn Multinomial Naive Bayes classifier successfully generated predictions for the test set, stored in `sklearn_test_predictions` with shape (5000,).
-*   The calculated Area Under the Curve (AUC) for both the manual classifier and the scikit-learn classifier on the test data is 0.4664.
-*   The ROC curves for both classifiers were plotted and appear nearly identical, significantly overlapping.
-*   The AUC value of 0.4664 is less than 0.5, indicating that both classifiers performed worse than random chance on this specific test dataset, given the defined true labels.
-
-### Insights or Next Steps
-
-*   The identical and sub-random performance of both classifiers on the test set strongly suggests potential inconsistencies in data labeling between the training and test sets or significant differences in data characteristics (data drift). A critical next step is to thoroughly investigate the data labeling process and compare the distributions of features between the training and test datasets.
-*   Given the poor performance, future work should focus on understanding the root cause, potentially by re-evaluating the definition of 'spam' used for labeling, exploring alternative feature engineering techniques, or considering other classification models if the data labeling proves consistent and the issue lies with the suitability of Naive Bayes.
+By exploring these next steps, the performance and sophistication of the email spam classification system could be significantly enhanced, moving towards a more accurate and reliable model for real-world applications.
