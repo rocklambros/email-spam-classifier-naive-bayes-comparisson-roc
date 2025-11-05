@@ -46,3 +46,6 @@ Thumbs.db
 
 # macOS specific files
 *.numbers
+-e 
+# Serena MCP tool directory
+.serena/
